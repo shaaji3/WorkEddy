@@ -11,6 +11,7 @@ use WorkEddy\Api\Services\AuthService;
 use WorkEddy\Api\Services\DashboardService;
 use WorkEddy\Api\Services\JwtService;
 use WorkEddy\Api\Services\ObserverService;
+use WorkEddy\Api\Services\QueueService;
 use WorkEddy\Api\Services\RiskScoringService;
 use WorkEddy\Api\Services\ScanService;
 use WorkEddy\Api\Services\TaskService;
@@ -20,12 +21,47 @@ header('Content-Type: application/json');
 
 function jsonResponse(array $payload, int $status = 200): void { http_response_code($status); echo json_encode($payload); exit; }
 function requestJson(): array { $in=file_get_contents('php://input'); $d=json_decode($in?:'[]', true); return is_array($d)?$d:[]; }
+function requestInput(): array {
+    if (!empty($_POST) || !empty($_FILES)) {
+        $data = $_POST;
+        if (isset($_FILES['video']) && is_uploaded_file($_FILES['video']['tmp_name'])) {
+            $baseDir = '/storage/uploads/videos';
+            if (!is_dir($baseDir)) {
+                @mkdir($baseDir, 0775, true);
+            }
+
+            $ext = strtolower(pathinfo($_FILES['video']['name'] ?? '', PATHINFO_EXTENSION) ?: '');
+            if (!in_array($ext, ['mp4', 'mov'], true)) {
+                jsonResponse(['error' => 'Unsupported video format. Use MP4 or MOV.'], 422);
+            }
+
+            $size = (int) ($_FILES['video']['size'] ?? 0);
+            $maxSize = (int) (getenv('MAX_VIDEO_UPLOAD_BYTES') ?: (200 * 1024 * 1024));
+            if ($size <= 0 || $size > $maxSize) {
+                jsonResponse(['error' => 'Invalid video size'], 422);
+            }
+
+            $filename = uniqid('scan_', true) . '.' . $ext;
+            $target = $baseDir . '/' . $filename;
+            if (!move_uploaded_file($_FILES['video']['tmp_name'], $target)) {
+                jsonResponse(['error' => 'Failed to store uploaded video'], 400);
+            }
+            $data['video_path'] = $target;
+        }
+        return is_array($data) ? $data : [];
+    }
+
+    return requestJson();
+}
 function bearerToken(): ?string { $h=getallheaders(); $a=$h['Authorization']??$h['authorization']??''; return str_starts_with($a,'Bearer ')?trim(substr($a,7)):null; }
 function requireClaims(JwtService $jwt): array { $t=bearerToken(); if(!$t){jsonResponse(['error'=>'Unauthorized'],401);} return $jwt->parseToken($t); }
 function requireRoles(array $claims, array $roles): void { if(!in_array($claims['role']??'', $roles, true)){jsonResponse(['error'=>'Forbidden'],403);} }
 
 $logger = Logger::make();
 $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+if (str_starts_with($path, '/api/v1')) {
+    $path = substr($path, 7) ?: '/';
+}
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $jwt = new JwtService();
 
@@ -34,7 +70,7 @@ try {
     $auth = new AuthService($db, $jwt);
     $users = new UserService($db);
     $tasks = new TaskService($db);
-    $scans = new ScanService($db, new RiskScoringService());
+    $scans = new ScanService($db, new RiskScoringService(), new QueueService());
     $dashboard = new DashboardService($db);
     $observer = new ObserverService($db);
 
@@ -46,6 +82,7 @@ try {
         $r->addRoute('GET', '/health', 'health');
         $r->addRoute('POST', '/auth/signup', 'auth.signup');
         $r->addRoute('POST', '/auth/login', 'auth.login');
+        $r->addRoute('POST', '/auth/logout', 'auth.logout');
         $r->addRoute('GET', '/auth/me', 'auth.me');
         $r->addRoute('GET', '/users', 'users.list');
         $r->addRoute('POST', '/users', 'users.create');
@@ -53,6 +90,7 @@ try {
         $r->addRoute('POST', '/tasks', 'tasks.create');
         $r->addRoute('GET', '/tasks/{id:\\d+}', 'tasks.get');
         $r->addRoute('POST', '/scans/manual', 'scans.manual');
+        $r->addRoute('POST', '/scans/video', 'scans.video');
         $r->addRoute('GET', '/scans', 'scans.list');
         $r->addRoute('GET', '/scans/{id:\\d+}', 'scans.get');
         $r->addRoute('GET', '/dashboard', 'dashboard.get');
@@ -64,7 +102,7 @@ try {
     if ($route[0] === Dispatcher::METHOD_NOT_ALLOWED) { jsonResponse(['error'=>'Method not allowed'],405); }
 
     [, $handler, $vars] = $route;
-    $body = requestJson();
+    $body = requestInput();
 
     switch ($handler) {
         case 'health': jsonResponse(['status'=>'ok','service'=>'workeddy-api','timestamp'=>gmdate('c')]);
@@ -74,6 +112,9 @@ try {
         case 'auth.login':
             if (empty($body['email']) || empty($body['password'])) jsonResponse(['error'=>'Missing email or password'],422);
             jsonResponse($auth->login($body['email'],$body['password']));
+        case 'auth.logout':
+            requireClaims($jwt);
+            jsonResponse(['message' => 'Logged out']);
         case 'auth.me':
             jsonResponse(['user'=>requireClaims($jwt)]);
         case 'users.list':
@@ -93,6 +134,11 @@ try {
             $claims=requireClaims($jwt); requireRoles($claims,['admin','supervisor','worker']); if(empty($body['task_id'])) jsonResponse(['error'=>'Missing field: task_id'],422);
             $tasks->getById((int)$claims['org'],(int)$body['task_id']);
             jsonResponse(['data'=>$scans->createManualScan((int)$claims['org'],(int)$claims['sub'],(int)$body['task_id'],$body)],201);
+        case 'scans.video':
+            $claims=requireClaims($jwt); requireRoles($claims,['admin','supervisor','worker']); if(empty($body['task_id'])) jsonResponse(['error'=>'Missing field: task_id'],422);
+            if (empty($body['video_path'])) jsonResponse(['error'=>'Missing field: video_path'],422);
+            $tasks->getById((int)$claims['org'],(int)$body['task_id']);
+            jsonResponse($scans->createVideoScan((int)$claims['org'],(int)$claims['sub'],(int)$body['task_id'],(string)$body['video_path'],isset($body['parent_scan_id'])?(int)$body['parent_scan_id']:null),201);
         case 'scans.list':
             $claims=requireClaims($jwt); requireRoles($claims,['admin','supervisor','worker','observer']); jsonResponse(['data'=>$scans->listByOrganization((int)$claims['org'])]);
         case 'scans.get':

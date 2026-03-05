@@ -16,6 +16,24 @@ CREATE TABLE IF NOT EXISTS users (
     CONSTRAINT fk_users_organization FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS plans (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    scan_limit INT NULL,
+    price DECIMAL(10,2) NOT NULL DEFAULT 0.00
+);
+
+CREATE TABLE IF NOT EXISTS subscriptions (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    organization_id BIGINT UNSIGNED NOT NULL,
+    plan_id BIGINT UNSIGNED NOT NULL,
+    start_date DATE NOT NULL,
+    end_date DATE NULL,
+    status VARCHAR(50) NOT NULL,
+    CONSTRAINT fk_subscriptions_organization FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+    CONSTRAINT fk_subscriptions_plan FOREIGN KEY (plan_id) REFERENCES plans(id) ON DELETE RESTRICT
+);
+
 CREATE TABLE IF NOT EXISTS tasks (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     organization_id BIGINT UNSIGNED NOT NULL,
@@ -55,6 +73,18 @@ CREATE TABLE IF NOT EXISTS manual_inputs (
     overhead TINYINT(1) NOT NULL DEFAULT 0,
     repetition DECIMAL(10,2) NOT NULL,
     CONSTRAINT fk_manual_inputs_scan FOREIGN KEY (scan_id) REFERENCES scans(id) ON DELETE CASCADE
+);
+
+
+
+CREATE TABLE IF NOT EXISTS video_metrics (
+    scan_id BIGINT UNSIGNED PRIMARY KEY,
+    max_trunk_angle DECIMAL(10,2) NOT NULL,
+    avg_trunk_angle DECIMAL(10,2) NOT NULL,
+    shoulder_elevation_duration DECIMAL(10,4) NOT NULL,
+    repetition_count INT NOT NULL,
+    processing_confidence DECIMAL(5,4) NOT NULL,
+    CONSTRAINT fk_video_metrics_scan FOREIGN KEY (scan_id) REFERENCES scans(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS usage_records (

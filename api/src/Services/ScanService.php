@@ -9,8 +9,11 @@ use RuntimeException;
 
 final class ScanService
 {
-    public function __construct(private Connection $db, private RiskScoringService $riskScoring)
-    {
+    public function __construct(
+        private Connection $db,
+        private RiskScoringService $riskScoring,
+        private QueueService $queue,
+    ) {
     }
 
     public function createManualScan(int $organizationId, int $userId, int $taskId, array $input): array
@@ -45,10 +48,58 @@ final class ScanService
         });
     }
 
+    public function createVideoScan(int $organizationId, int $userId, int $taskId, string $videoPath, ?int $parentScanId = null): array
+    {
+        if (trim($videoPath) === '') {
+            throw new RuntimeException('Missing field: video_path');
+        }
+
+        if (!str_starts_with($videoPath, '/storage/uploads/videos/')) {
+            throw new RuntimeException('video_path must be under /storage/uploads/videos/');
+        }
+
+        if ($parentScanId !== null) {
+            $parent = $this->db->fetchAssociative(
+                'SELECT id FROM scans WHERE id = :id AND organization_id = :organization_id LIMIT 1',
+                ['id' => $parentScanId, 'organization_id' => $organizationId]
+            );
+            if (!$parent) {
+                throw new RuntimeException('parent_scan_id not found in organization');
+            }
+        }
+
+        return $this->db->transactional(function () use ($organizationId, $userId, $taskId, $videoPath, $parentScanId): array {
+            $this->db->executeStatement(
+                'INSERT INTO scans (organization_id, user_id, task_id, scan_type, raw_score, normalized_score, risk_category, parent_scan_id, status, video_path, created_at) VALUES (:organization_id, :user_id, :task_id, :scan_type, :raw_score, :normalized_score, :risk_category, :parent_scan_id, :status, :video_path, NOW())',
+                [
+                    'organization_id' => $organizationId,
+                    'user_id' => $userId,
+                    'task_id' => $taskId,
+                    'scan_type' => 'video',
+                    'raw_score' => 0,
+                    'normalized_score' => 0,
+                    'risk_category' => 'low',
+                    'parent_scan_id' => $parentScanId,
+                    'status' => 'processing',
+                    'video_path' => $videoPath,
+                ]
+            );
+            $scanId = (int) $this->db->lastInsertId();
+
+            $this->queue->enqueueScanJob([
+                'scan_id' => $scanId,
+                'organization_id' => $organizationId,
+                'video_path' => $videoPath,
+            ]);
+
+            return ['scan_id' => $scanId, 'status' => 'processing'];
+        });
+    }
+
     public function getById(int $organizationId, int $scanId): array
     {
         $scan = $this->db->fetchAssociative(
-            'SELECT s.id, s.organization_id, s.user_id, s.task_id, s.scan_type, s.raw_score, s.normalized_score, s.risk_category, s.parent_scan_id, s.status, s.video_path, s.created_at, mi.weight, mi.frequency, mi.duration, mi.trunk_angle_estimate, mi.twisting, mi.overhead, mi.repetition FROM scans s LEFT JOIN manual_inputs mi ON mi.scan_id = s.id WHERE s.organization_id = :organization_id AND s.id = :id LIMIT 1',
+            'SELECT s.id, s.organization_id, s.user_id, s.task_id, s.scan_type, s.raw_score, s.normalized_score, s.risk_category, s.parent_scan_id, s.status, s.video_path, s.created_at, mi.weight, mi.frequency, mi.duration, mi.trunk_angle_estimate, mi.twisting, mi.overhead, mi.repetition, vm.max_trunk_angle, vm.avg_trunk_angle, vm.shoulder_elevation_duration, vm.repetition_count, vm.processing_confidence FROM scans s LEFT JOIN manual_inputs mi ON mi.scan_id = s.id LEFT JOIN video_metrics vm ON vm.scan_id = s.id WHERE s.organization_id = :organization_id AND s.id = :id LIMIT 1',
             ['organization_id' => $organizationId, 'id' => $scanId]
         );
         if (!$scan) {
@@ -60,7 +111,7 @@ final class ScanService
     public function listByOrganization(int $organizationId): array
     {
         return $this->db->fetchAllAssociative(
-            'SELECT id, organization_id, user_id, task_id, scan_type, raw_score, normalized_score, risk_category, status, created_at FROM scans WHERE organization_id = :organization_id ORDER BY id DESC',
+            'SELECT id, organization_id, user_id, task_id, scan_type, raw_score, normalized_score, risk_category, status, video_path, created_at FROM scans WHERE organization_id = :organization_id ORDER BY id DESC',
             ['organization_id' => $organizationId]
         );
     }

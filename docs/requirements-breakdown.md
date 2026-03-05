@@ -87,7 +87,7 @@
 This repository now starts with:
 - Baseline monorepo structure: `/api`, `/workers`, `/frontend`, `/docs`, `/storage`.
 - Initial API health endpoint scaffold.
-- Initial worker queue-processing scaffold.
+- Initial worker queue-processing scaffold plus video scan job consumption flow.
 - Frontend Bootstrap starter page.
 - Compose-based local infrastructure bootstrap.
 
@@ -95,5 +95,5 @@ Next suggested implementation steps:
 1. Implement Auth + Organization onboarding.
 2. Add tenant middleware and RBAC policies.
 3. Build Task and Manual Scan APIs.
-4. Add Redis job producer + worker consumer contract.
+4. Expand worker CV pipeline from simulated metrics to full pose extraction.
 5. Add dashboard aggregation queries.
