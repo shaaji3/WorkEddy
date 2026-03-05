@@ -37,9 +37,7 @@ Base URL: `/api/v1` (legacy unprefixed routes are also accepted).
 - `GET /auth/me`
 - `GET /users`, `POST /users`
 - `GET /tasks`, `POST /tasks`, `GET /tasks/{id}`
-- `POST /scans/manual`
-- `POST /scans/video`
-- `GET /scans`, `GET /scans/{id}`
+- `POST /scans/manual`, `GET /scans`, `GET /scans/{id}`
 - `GET /dashboard`
 - `POST /observer-rating`
 - `GET /health`
@@ -59,11 +57,4 @@ docker compose exec api php scripts/migrate.php
 
 - All business data endpoints are organization-scoped using JWT claims.
 - Role checks are enforced per endpoint.
-- Video scans are created in `processing` state, queued to Redis, and completed by the worker.
-- Worker marks failed video jobs as `invalid` and only records usage on successful completion.
-
-## Structure status
-
-- Current runnable implementation remains in: `/api`, `/workers`, `/frontend`, `/infra`.
-- Recommended modular-monolith scaffold from `requirements.md` is added under: `/app`, `/routes`, `/views`, `/ml`, `/infrastructure`, `/scripts`, `/tests`.
-- See `PROJECT_STRUCTURE.md` for alignment notes.
+- Worker service is active for upcoming video pipeline expansion.

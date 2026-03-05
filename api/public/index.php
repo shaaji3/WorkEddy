@@ -70,7 +70,7 @@ try {
     $auth = new AuthService($db, $jwt);
     $users = new UserService($db);
     $tasks = new TaskService($db);
-    $scans = new ScanService($db, new RiskScoringService(), new QueueService());
+    $scans = new ScanService($db, new RiskScoringService());
     $dashboard = new DashboardService($db);
     $observer = new ObserverService($db);
 
@@ -90,7 +90,6 @@ try {
         $r->addRoute('POST', '/tasks', 'tasks.create');
         $r->addRoute('GET', '/tasks/{id:\\d+}', 'tasks.get');
         $r->addRoute('POST', '/scans/manual', 'scans.manual');
-        $r->addRoute('POST', '/scans/video', 'scans.video');
         $r->addRoute('GET', '/scans', 'scans.list');
         $r->addRoute('GET', '/scans/{id:\\d+}', 'scans.get');
         $r->addRoute('GET', '/dashboard', 'dashboard.get');
@@ -134,11 +133,6 @@ try {
             $claims=requireClaims($jwt); requireRoles($claims,['admin','supervisor','worker']); if(empty($body['task_id'])) jsonResponse(['error'=>'Missing field: task_id'],422);
             $tasks->getById((int)$claims['org'],(int)$body['task_id']);
             jsonResponse(['data'=>$scans->createManualScan((int)$claims['org'],(int)$claims['sub'],(int)$body['task_id'],$body)],201);
-        case 'scans.video':
-            $claims=requireClaims($jwt); requireRoles($claims,['admin','supervisor','worker']); if(empty($body['task_id'])) jsonResponse(['error'=>'Missing field: task_id'],422);
-            if (empty($body['video_path'])) jsonResponse(['error'=>'Missing field: video_path'],422);
-            $tasks->getById((int)$claims['org'],(int)$body['task_id']);
-            jsonResponse($scans->createVideoScan((int)$claims['org'],(int)$claims['sub'],(int)$body['task_id'],(string)$body['video_path'],isset($body['parent_scan_id'])?(int)$body['parent_scan_id']:null),201);
         case 'scans.list':
             $claims=requireClaims($jwt); requireRoles($claims,['admin','supervisor','worker','observer']); jsonResponse(['data'=>$scans->listByOrganization((int)$claims['org'])]);
         case 'scans.get':

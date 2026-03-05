@@ -4,25 +4,24 @@ declare(strict_types=1);
 
 namespace WorkEddy\Api\Services;
 
-use RuntimeException;
+use Predis\Client;
 
 final class QueueService
 {
-    private object $client;
+    private Client $client;
 
-    public function __construct(private string $queueName = 'scan_jobs')
+    public function __construct()
     {
-        if (!class_exists(\Predis\Client::class)) {
-            throw new RuntimeException('Predis is required for queue operations. Run composer install in api/.');
-        }
-
-        $host = getenv('REDIS_HOST') ?: '127.0.0.1';
-        $port = (int) (getenv('REDIS_PORT') ?: '6379');
-        $this->client = new \Predis\Client(['scheme' => 'tcp', 'host' => $host, 'port' => $port]);
+        $this->client = new Client([
+            'scheme' => 'tcp',
+            'host' => getenv('REDIS_HOST') ?: '127.0.0.1',
+            'port' => (int) (getenv('REDIS_PORT') ?: '6379'),
+        ]);
     }
 
     public function enqueueScanJob(array $payload): void
     {
-        $this->client->lpush($this->queueName, json_encode($payload, JSON_THROW_ON_ERROR));
+        $queueName = getenv('WORKER_QUEUE') ?: 'scan_jobs';
+        $this->client->lpush($queueName, [json_encode($payload, JSON_THROW_ON_ERROR)]);
     }
 }
