@@ -8,11 +8,9 @@ use FastRoute\Dispatcher;
 use WorkEddy\Api\Config\Database;
 use WorkEddy\Api\Config\Logger;
 use WorkEddy\Api\Services\AuthService;
-use WorkEddy\Api\Services\BillingService;
 use WorkEddy\Api\Services\DashboardService;
 use WorkEddy\Api\Services\JwtService;
 use WorkEddy\Api\Services\ObserverService;
-use WorkEddy\Api\Services\QueueService;
 use WorkEddy\Api\Services\RiskScoringService;
 use WorkEddy\Api\Services\ScanService;
 use WorkEddy\Api\Services\TaskService;
@@ -33,11 +31,18 @@ $jwt = new JwtService();
 
 try {
     $db = Database::connection();
+<<<<<<< codex/break-down-requirements-and-start-project-setup-43uxpf
     $billing = new BillingService($db);
     $auth = new AuthService($db, $jwt, $billing);
     $users = new UserService($db);
     $tasks = new TaskService($db);
     $scans = new ScanService($db, new RiskScoringService(), new QueueService(), $billing);
+=======
+    $auth = new AuthService($db, $jwt);
+    $users = new UserService($db);
+    $tasks = new TaskService($db);
+    $scans = new ScanService($db, new RiskScoringService());
+>>>>>>> main
     $dashboard = new DashboardService($db);
     $observer = new ObserverService($db);
 
@@ -56,14 +61,20 @@ try {
         $r->addRoute('POST', '/tasks', 'tasks.create');
         $r->addRoute('GET', '/tasks/{id:\\d+}', 'tasks.get');
         $r->addRoute('POST', '/scans/manual', 'scans.manual');
+<<<<<<< codex/break-down-requirements-and-start-project-setup-43uxpf
         $r->addRoute('POST', '/scans/video', 'scans.video');
+=======
+>>>>>>> main
         $r->addRoute('GET', '/scans', 'scans.list');
         $r->addRoute('GET', '/scans/{id:\\d+}', 'scans.get');
         $r->addRoute('GET', '/dashboard', 'dashboard.get');
         $r->addRoute('POST', '/observer-rating', 'observer.rate');
+<<<<<<< codex/break-down-requirements-and-start-project-setup-43uxpf
         $r->addRoute('GET', '/observer-rating/{scan_id:\\d+}', 'observer.list');
         $r->addRoute('GET', '/billing/usage', 'billing.usage');
         $r->addRoute('GET', '/billing/plans', 'billing.plans');
+=======
+>>>>>>> main
     });
 
     $route = $dispatcher->dispatch($method, $path);
@@ -100,6 +111,7 @@ try {
             $claims=requireClaims($jwt); requireRoles($claims,['admin','supervisor','worker']); if(empty($body['task_id'])) jsonResponse(['error'=>'Missing field: task_id'],422);
             $tasks->getById((int)$claims['org'],(int)$body['task_id']);
             jsonResponse(['data'=>$scans->createManualScan((int)$claims['org'],(int)$claims['sub'],(int)$body['task_id'],$body)],201);
+<<<<<<< codex/break-down-requirements-and-start-project-setup-43uxpf
         case 'scans.video':
             $claims=requireClaims($jwt); requireRoles($claims,['admin','supervisor','worker']);
             $taskId = isset($_POST['task_id']) ? (int) $_POST['task_id'] : 0;
@@ -121,6 +133,8 @@ try {
             }
 
             jsonResponse(['data' => $scans->createVideoScan((int)$claims['org'], (int)$claims['sub'], $taskId, $targetPath)], 201);
+=======
+>>>>>>> main
         case 'scans.list':
             $claims=requireClaims($jwt); requireRoles($claims,['admin','supervisor','worker','observer']); jsonResponse(['data'=>$scans->listByOrganization((int)$claims['org'])]);
         case 'scans.get':
@@ -130,6 +144,7 @@ try {
         case 'observer.rate':
             $claims=requireClaims($jwt); requireRoles($claims,['observer','admin']);
             foreach (['scan_id','observer_score','observer_category'] as $f) { if (!isset($body[$f])) jsonResponse(['error'=>"Missing field: {$f}"],422); }
+<<<<<<< codex/break-down-requirements-and-start-project-setup-43uxpf
             jsonResponse(['data'=>$observer->rate((int)$claims['org'], (int)$body['scan_id'], (int)$claims['sub'], (float)$body['observer_score'], (string)$body['observer_category'], $body['notes']??null)],201);
         case 'observer.list':
             $claims=requireClaims($jwt); requireRoles($claims,['admin','supervisor','observer']);
@@ -140,6 +155,9 @@ try {
         case 'billing.plans':
             $claims=requireClaims($jwt); requireRoles($claims,['admin']);
             jsonResponse(['data' => $billing->plans()]);
+=======
+            jsonResponse(['data'=>$observer->rate((int)$body['scan_id'],(int)$claims['sub'],(float)$body['observer_score'],(string)$body['observer_category'],$body['notes']??null)],201);
+>>>>>>> main
     }
 
     jsonResponse(['error'=>'Unhandled route'],500);

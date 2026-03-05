@@ -12,6 +12,7 @@ final class ObserverService
     {
     }
 
+<<<<<<< codex/break-down-requirements-and-start-project-setup-43uxpf
     public function rate(int $organizationId, int $scanId, int $observerId, float $score, string $category, ?string $notes): array
     {
         $scan = $this->db->fetchAssociative('SELECT id, organization_id FROM scans WHERE id = :id LIMIT 1', ['id' => $scanId]);
@@ -19,6 +20,10 @@ final class ObserverService
             throw new \RuntimeException('Scan not found in organization scope');
         }
 
+=======
+    public function rate(int $scanId, int $observerId, float $score, string $category, ?string $notes): array
+    {
+>>>>>>> main
         $this->db->executeStatement(
             'INSERT INTO observer_ratings (scan_id, observer_id, observer_score, observer_category, notes, created_at) VALUES (:scan_id, :observer_id, :observer_score, :observer_category, :notes, NOW())',
             ['scan_id' => $scanId, 'observer_id' => $observerId, 'observer_score' => $score, 'observer_category' => $category, 'notes' => $notes]
@@ -33,6 +38,7 @@ final class ObserverService
             'notes' => $notes,
         ];
     }
+<<<<<<< codex/break-down-requirements-and-start-project-setup-43uxpf
 
     public function listByScan(int $organizationId, int $scanId): array
     {
@@ -46,4 +52,6 @@ final class ObserverService
             ['organization_id' => $organizationId, 'scan_id' => $scanId]
         );
     }
+=======
+>>>>>>> main
 }

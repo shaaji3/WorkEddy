@@ -5,26 +5,6 @@ CREATE TABLE IF NOT EXISTS organizations (
     created_at DATETIME NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS plans (
-    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(100) NOT NULL UNIQUE,
-    scan_limit INT NULL,
-    price DECIMAL(10,2) NOT NULL,
-    created_at DATETIME NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS subscriptions (
-    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    organization_id BIGINT UNSIGNED NOT NULL,
-    plan_id BIGINT UNSIGNED NOT NULL,
-    start_date DATETIME NOT NULL,
-    end_date DATETIME NULL,
-    status ENUM('active','inactive','cancelled') NOT NULL DEFAULT 'active',
-    created_at DATETIME NOT NULL,
-    CONSTRAINT fk_sub_org FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
-    CONSTRAINT fk_sub_plan FOREIGN KEY (plan_id) REFERENCES plans(id) ON DELETE RESTRICT
-);
-
 CREATE TABLE IF NOT EXISTS users (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     organization_id BIGINT UNSIGNED NOT NULL,
@@ -87,6 +67,7 @@ CREATE TABLE IF NOT EXISTS usage_records (
     CONSTRAINT fk_usage_scan FOREIGN KEY (scan_id) REFERENCES scans(id) ON DELETE CASCADE
 );
 
+<<<<<<< codex/break-down-requirements-and-start-project-setup-43uxpf
 CREATE TABLE IF NOT EXISTS video_metrics (
     scan_id BIGINT UNSIGNED PRIMARY KEY,
     max_trunk_angle DECIMAL(10,2) NOT NULL,
@@ -96,6 +77,8 @@ CREATE TABLE IF NOT EXISTS video_metrics (
     processing_confidence DECIMAL(5,2) NOT NULL,
     CONSTRAINT fk_video_metrics_scan FOREIGN KEY (scan_id) REFERENCES scans(id) ON DELETE CASCADE
 );
+=======
+>>>>>>> main
 
 CREATE TABLE IF NOT EXISTS observer_ratings (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -108,6 +91,7 @@ CREATE TABLE IF NOT EXISTS observer_ratings (
     CONSTRAINT fk_observer_scan FOREIGN KEY (scan_id) REFERENCES scans(id) ON DELETE CASCADE,
     CONSTRAINT fk_observer_user FOREIGN KEY (observer_id) REFERENCES users(id) ON DELETE CASCADE
 );
+<<<<<<< codex/break-down-requirements-and-start-project-setup-43uxpf
 
 INSERT INTO plans (name, scan_limit, price, created_at)
 SELECT 'starter', 100, 99.00, NOW()
@@ -120,3 +104,5 @@ WHERE NOT EXISTS (SELECT 1 FROM plans WHERE name = 'professional');
 INSERT INTO plans (name, scan_limit, price, created_at)
 SELECT 'enterprise', NULL, 999.00, NOW()
 WHERE NOT EXISTS (SELECT 1 FROM plans WHERE name = 'enterprise');
+=======
+>>>>>>> main

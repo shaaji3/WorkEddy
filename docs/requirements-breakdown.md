@@ -97,6 +97,7 @@ Next suggested implementation steps:
 3. Build Task and Manual Scan APIs.
 4. Add Redis job producer + worker consumer contract.
 5. Add dashboard aggregation queries.
+<<<<<<< codex/break-down-requirements-and-start-project-setup-43uxpf
 
 
 ## Milestone 3 Delivery Notes
@@ -111,3 +112,5 @@ Next suggested implementation steps:
 - Added billing usage APIs for monthly usage and remaining scan limits.
 - Added plan limit enforcement in scan creation flows.
 - Expanded dashboard analytics with department risk heatmap and observer alignment categories.
+=======
+>>>>>>> main
