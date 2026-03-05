@@ -1,0 +1,1 @@
+<!-- Dashboard view scaffold placeholder -->
