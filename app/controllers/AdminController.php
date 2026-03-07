@@ -102,6 +102,21 @@ final class AdminController
         Response::json(['message' => 'Plan deleted']);
     }
 
+    /* ── System Settings ─────────────────────────────────────────────── */
+
+    public function getSystemSettings(array $claims): never
+    {
+        Auth::requireRoles($claims, ['admin']);
+        Response::json(['data' => $this->admin->getSystemSettings()]);
+    }
+
+    public function updateSystemSettings(array $claims, array $body): never
+    {
+        Auth::requireRoles($claims, ['admin']);
+        $this->admin->updateSystemSettings($body);
+        Response::json(['message' => 'System settings updated']);
+    }
+
     /* ── System Stats ─────────────────────────────────────────────────── */
 
     public function stats(array $claims): never

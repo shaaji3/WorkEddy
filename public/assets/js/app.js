@@ -8,6 +8,7 @@
  * ──────────────────────────────────────────────────────────────────────────── */
 
 const API_BASE = '/api/v1';
+const MAX_VIDEO_BYTES = 200 * 1024 * 1024; // 200 MB — must match server
 
 function _token()   { return localStorage.getItem('we_token') || ''; }
 function _save(t)   {
@@ -19,7 +20,32 @@ function _clear()   {
   document.cookie = 'we_token=;path=/;max-age=0;SameSite=Lax';
 }
 
+/**
+ * Silently refresh the JWT when it has less than 5 minutes left.
+ * Skips refresh if the request itself is the refresh endpoint (avoid loop).
+ */
+async function _maybeRefresh(path) {
+  if (path === '/auth/refresh') return;
+  const t = _token();
+  if (!t) return;
+  try {
+    const p = JSON.parse(atob(t.split('.')[1]));
+    // Refresh when fewer than 5 minutes remain
+    if (p.exp - Date.now() / 1000 < 300) {
+      const res = await fetch(API_BASE + '/auth/refresh', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + t, 'Content-Type': 'application/json' },
+      });
+      if (res.ok) {
+        const d = await res.json().catch(() => ({}));
+        if (d.token) _save(d.token);
+      }
+    }
+  } catch (_) { /* noop — expired tokens handled normally by 401 */ }
+}
+
 async function api(path, opts = {}) {
+  await _maybeRefresh(path);
   const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
   const token = _token();
   if (token) headers['Authorization'] = 'Bearer ' + token;
@@ -34,6 +60,7 @@ async function api(path, opts = {}) {
 }
 
 async function apiUpload(path, formData, onProgress) {
+  await _maybeRefresh(path);
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     if (onProgress) {
@@ -42,6 +69,7 @@ async function apiUpload(path, formData, onProgress) {
       });
     }
     xhr.onload = () => {
+      if (xhr.status === 413) { reject(new Error('Video exceeds the maximum allowed size (200 MB).')); return; }
       const d = JSON.parse(xhr.responseText || '{}');
       if (xhr.status >= 200 && xhr.status < 300) resolve(('data' in d) ? d.data : d);
       else reject(new Error(d.error || 'Upload failed'));
@@ -67,6 +95,7 @@ document.addEventListener('alpine:init', () => {
   Alpine.store('auth', {
     role: null,
     orgId: null,
+    orgSettings: {},      // cached org settings (theme_color, default_model, etc.)
     init() {
       /* Auto-check on authenticated pages (pages using main layout) */
       const path = location.pathname;
@@ -81,22 +110,80 @@ document.addEventListener('alpine:init', () => {
         if (Date.now() / 1000 > p.exp) { _clear(); location.href = '/login'; return false; }
         this.role  = p.role || null;
         this.orgId = p.org  || null;
+        // Load org settings for theme binding
+        this._loadOrgSettings();
       } catch (_) { /* noop */ }
       return true;
+    },
+    async _loadOrgSettings() {
+      try {
+        const res = await api('/org/settings');
+        const data = res.data ?? res;
+        this.orgSettings = data;
+        // Apply theme color
+        if (data.theme_color) {
+          document.documentElement.style.setProperty('--we-primary', data.theme_color);
+        }
+      } catch (_) { /* non-critical */ }
     }
   });
 
   /* ── Login page ───────────────────────────────────────────────────────── */
   Alpine.data('loginPage', () => ({
-    email: '', password: '', error: '', loading: false,
+    step: 'credentials',        // 'credentials' | '2fa'
+    email: '', password: '', totpCode: '',
+    tempToken: '',              // temporary JWT for 2FA verification
+    error: '', loading: false,
+
+    /* Step 1 — email & password */
     async submit() {
       this.error = ''; this.loading = true;
       try {
-        const d = await api('/auth/login', { method: 'POST', body: JSON.stringify({ email: this.email, password: this.password }) });
+        const d = await api('/auth/login', {
+          method: 'POST',
+          body: JSON.stringify({ email: this.email, password: this.password })
+        });
+
+        if (d.requires_2fa) {
+          // User has TOTP enabled — show 2FA code input
+          this.tempToken = d.temp_token;
+          this.step = '2fa';
+          return;
+        }
+
+        // Normal login — save token and redirect
         _save(d.token);
         location.href = '/dashboard';
       } catch (e) { this.error = e.message; }
       finally { this.loading = false; }
+    },
+
+    /* Step 2 — verify TOTP code */
+    async submit2fa() {
+      this.error = ''; this.loading = true;
+      try {
+        const d = await fetch('/api/auth/2fa/verify', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + this.tempToken,
+          },
+          body: JSON.stringify({ code: this.totpCode }),
+        });
+        const json = await d.json();
+        if (!d.ok) throw new Error(json.error || 'Verification failed');
+
+        _save(json.token);
+        location.href = '/dashboard';
+      } catch (e) { this.error = e.message; }
+      finally { this.loading = false; }
+    },
+
+    backToLogin() {
+      this.step = 'credentials';
+      this.totpCode = '';
+      this.tempToken = '';
+      this.error = '';
     }
   }));
 
@@ -288,6 +375,12 @@ document.addEventListener('alpine:init', () => {
     model: 'reba',
     models: [],
     uploading: false, progress: 0,
+    videoPreviewUrl: null,
+    // Inline results state
+    scanId: null, scan: null, resultLoading: false, resultPending: false,
+    scanInvalid: false, errorMessage: '',
+    measurements: [], recommendation: '',
+    _pollTimer: null,
     async init() {
       const p = new URLSearchParams(location.search);
       const pre = p.get('task_id');
@@ -302,11 +395,21 @@ document.addEventListener('alpine:init', () => {
       if (pre) this.selectedTask = pre;
       else if (this.tasks.length) this.selectedTask = String(this.tasks[0].id);
     },
+    onFileChange() {
+      const file = this.$refs.videoFile && this.$refs.videoFile.files[0];
+      if (this.videoPreviewUrl) URL.revokeObjectURL(this.videoPreviewUrl);
+      this.videoPreviewUrl = file ? URL.createObjectURL(file) : null;
+    },
     async submit() {
       this.error = '';
       const fileInput = this.$refs.videoFile;
       const file = fileInput && fileInput.files[0];
       if (!file) { this.error = 'Please select a video file.'; return; }
+
+      if (file.size > MAX_VIDEO_BYTES) {
+        this.error = `Video is too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum allowed size is 200 MB.`;
+        return;
+      }
 
       this.uploading = true; this.progress = 0;
       const fd = new FormData();
@@ -316,19 +419,85 @@ document.addEventListener('alpine:init', () => {
 
       try {
         const result = await apiUpload('/scans/video', fd, pct => { this.progress = pct; });
-        location.href = '/scans/' + result.id;
+        this.scanId = result.scan_id || result.id;
+        this.uploading = false;
+        // Start inline result polling
+        this.resultLoading = true;
+        this.resultPending = true;
+        this.pollResult();
       } catch (e) { this.error = e.message; this.uploading = false; }
-    }
+    },
+    async pollResult() {
+      if (!this.scanId) return;
+      try {
+        const s = await api('/scans/' + this.scanId);
+        this.scan = s;
+
+        if (s.status === 'invalid') {
+          this.scanInvalid = true;
+          this.errorMessage = s.error_message || 'The video could not be analysed. Please ensure the video shows a person clearly performing a task.';
+          this.resultPending = false;
+          this.resultLoading = false;
+          return;
+        }
+        this.scanInvalid = false;
+
+        if (s.status === 'completed') {
+          this.resultPending = false;
+          this.resultLoading = false;
+          const metrics = s.metrics || {};
+          const metricLabels = {
+            neck_angle: 'Neck angle (°)', trunk_angle: 'Trunk angle (°)',
+            upper_arm_angle: 'Upper arm (°)', lower_arm_angle: 'Lower arm (°)',
+            wrist_angle: 'Wrist (°)', leg_score: 'Leg score',
+            shoulder_elevation_duration: 'Shoulder elev. (s)',
+            repetition_count: 'Repetitions', processing_confidence: 'Confidence'
+          };
+          this.measurements = Object.entries(metricLabels)
+            .filter(([k]) => metrics[k] != null && metrics[k] !== '')
+            .map(([k, label]) => ({ label, value: metrics[k] }));
+          this.recommendation = s.recommendation || '';
+        } else {
+          clearTimeout(this._pollTimer);
+          this._pollTimer = setTimeout(() => this.pollResult(), 4000);
+        }
+      } catch (e) {
+        this.error = e.message;
+        this.resultLoading = false;
+      }
+    },
+    get score() {
+      if (!this.scan) return '–';
+      return Number(this.scan.result_score ?? this.scan.normalized_score ?? 0).toFixed(1);
+    },
+    get riskLevel() {
+      if (!this.scan) return 'low';
+      return (this.scan.risk_level ?? this.scan.risk_category ?? 'low').toLowerCase();
+    },
+    get barColor() {
+      const l = this.riskLevel;
+      if (l.includes('very high') || l === 'high') return '#dc3545';
+      if (l === 'moderate' || l === 'medium') return '#fd7e14';
+      return '#198754';
+    },
+    get barWidth() { return Math.min(100, parseFloat(this.score) * 10 || 0) + '%'; },
+    destroy() { clearTimeout(this._pollTimer); if (this.videoPreviewUrl) URL.revokeObjectURL(this.videoPreviewUrl); }
   }));
 
   /* ── Scan results page ────────────────────────────────────────────────── */
   Alpine.data('scanResultsPage', () => ({
     scanId: null, scan: null, loading: true, error: '', pending: false,
+    scanInvalid: false, errorMessage: '',
     measurements: [], recommendation: '',
     _pollTimer: null,
     init() {
-      const p = new URLSearchParams(location.search);
-      this.scanId = p.get('id');
+      // Support both /scans/42 (path) and /scans?id=42 (query)
+      const parts = location.pathname.split('/').filter(Boolean);
+      if (parts[0] === 'scans' && parts[1] && /^\d+$/.test(parts[1])) {
+        this.scanId = parts[1];
+      } else {
+        this.scanId = new URLSearchParams(location.search).get('id');
+      }
       if (!this.scanId) { location.href = '/tasks'; return; }
       this.loadScan();
     },
@@ -336,6 +505,16 @@ document.addEventListener('alpine:init', () => {
       try {
         const s = await api('/scans/' + this.scanId);
         this.scan = s;
+
+        // Handle invalid/failed scans
+        if (s.status === 'invalid') {
+          this.scanInvalid = true;
+          this.errorMessage = s.error_message || 'The video could not be analysed. This may happen if no human pose was detected in the video. Please upload a video that clearly shows a person performing the task.';
+          this.pending = false;
+          this.loading = false;
+          return;
+        }
+        this.scanInvalid = false;
 
         // Build measurements from the metrics sub-object
         const metrics = s.metrics || {};
@@ -394,9 +573,19 @@ document.addEventListener('alpine:init', () => {
     form: { observer_score: '', observer_category: '', notes: '' },
     init() {
       const parts = location.pathname.split('/').filter(Boolean);
-      // path: /scans/{id}/observe
-      this.scanId = parts[1] || null;
-      if (!this.scanId) { location.href = '/tasks'; return; }
+      // Supports two URL patterns:
+      //   /scans/{id}/observe   → parts = ['scans', '{id}', 'observe']
+      //   /observer-rating?scan_id={id}  → read from query string
+      if (parts[0] === 'scans') {
+        this.scanId = parts[1] || null;
+      } else {
+        this.scanId = new URLSearchParams(location.search).get('scan_id') || null;
+      }
+      if (!this.scanId) {
+        // No scan context — send to scans list so the user can pick one
+        location.href = '/scans/new-manual';
+        return;
+      }
       this.load();
     },
     async load() {
@@ -782,44 +971,312 @@ document.addEventListener('alpine:init', () => {
     }
   }));
 
+  /* ── User Profile page ──────────────────────────────────────────────── */
+  Alpine.data('userProfilePage', () => ({
+    profile: {}, loading: true,
+    form: { name: '', email: '' },
+    saving: false, saveSuccess: '', saveError: '',
+
+    // ── 2FA state ──────────────────────────────────────────────────
+    twoFaEnabled: false, twoFaLoading: true,
+    twoFaSetupLoading: false, twoFaConfirmLoading: false, twoFaDisableLoading: false,
+    setupStep: 'idle',        // 'idle' | 'qr' | 'done'
+    twoFaSecret: '', twoFaQrUri: '',
+    twoFaCode: '', twoFaError: '', twoFaMsg: '',
+
+    async init() {
+      try {
+        const res = await api('/user/profile');
+        this.profile = res.data ?? res;
+        this.form = {
+          name:  this.profile.name  || '',
+          email: this.profile.email || '',
+        };
+      } catch (e) { this.saveError = e.message; }
+      finally { this.loading = false; }
+
+      // Load 2FA status
+      try {
+        const s = await api('/auth/2fa/status');
+        this.twoFaEnabled = s.enabled ?? false;
+      } catch (_) {}
+      finally { this.twoFaLoading = false; }
+    },
+
+    async saveProfile() {
+      this.saveSuccess = ''; this.saveError = ''; this.saving = true;
+      try {
+        const res = await api('/user/profile', { method: 'PUT', body: JSON.stringify(this.form) });
+        const data = res.data ?? res;
+        this.profile = data;
+        this.saveSuccess = 'Profile updated successfully.';
+      } catch (e) { this.saveError = e.message; }
+      finally { this.saving = false; }
+    },
+
+    resetForm() {
+      this.form = { name: this.profile.name || '', email: this.profile.email || '' };
+      this.saveSuccess = ''; this.saveError = '';
+    },
+
+    /* Start 2FA setup */
+    async start2faSetup() {
+      this.twoFaError = ''; this.twoFaMsg = ''; this.twoFaSetupLoading = true;
+      try {
+        const d = await api('/auth/2fa/setup', { method: 'POST' });
+        this.twoFaSecret = d.secret;
+        this.twoFaQrUri  = d.qr_uri;
+        this.setupStep   = 'qr';
+      } catch (e) { this.twoFaError = e.message; }
+      finally { this.twoFaSetupLoading = false; }
+    },
+
+    /* Confirm 2FA */
+    async confirm2fa() {
+      this.twoFaError = ''; this.twoFaConfirmLoading = true;
+      if (!this.twoFaCode || this.twoFaCode.length < 6) {
+        this.twoFaError = 'Please enter a 6-digit code.'; this.twoFaConfirmLoading = false; return;
+      }
+      try {
+        await api('/auth/2fa/confirm', {
+          method: 'POST',
+          body: JSON.stringify({ secret: this.twoFaSecret, code: this.twoFaCode }),
+        });
+        this.twoFaEnabled = true;
+        this.setupStep    = 'done';
+        this.twoFaMsg     = 'Two-factor authentication has been enabled.';
+        this.twoFaCode    = '';
+      } catch (e) { this.twoFaError = e.message; }
+      finally { this.twoFaConfirmLoading = false; }
+    },
+
+    /* Disable 2FA */
+    async disable2fa() {
+      if (!confirm('Are you sure you want to disable two-factor authentication?')) return;
+      this.twoFaError = ''; this.twoFaMsg = ''; this.twoFaDisableLoading = true;
+      try {
+        await api('/auth/2fa/disable', { method: 'POST' });
+        this.twoFaEnabled = false;
+        this.setupStep = 'idle';
+        this.twoFaMsg = 'Two-factor authentication has been disabled.';
+      } catch (e) { this.twoFaError = e.message; }
+      finally { this.twoFaDisableLoading = false; }
+    },
+
+    cancel2faSetup() {
+      this.setupStep = 'idle';
+      this.twoFaSecret = '';
+      this.twoFaQrUri  = '';
+      this.twoFaCode   = '';
+      this.twoFaError  = '';
+    },
+
+    fmtDate(d) { return d ? new Date(d).toLocaleDateString() : '—'; }
+  }));
+
   /* ── Org Settings page ────────────────────────────────────────────────── */
   Alpine.data('orgSettingsPage', () => ({
     org: {}, subscription: {}, loading: true, error: '',
-    form: { name: '', slug: '', contact_email: '' },
+    form: {
+      name: '', slug: '', contact_email: '',
+      industry: '', size: '', website: '', theme_color: '',
+      default_model: '', video_retention_days: 30, auto_delete_video: false,
+    },
     saving: false, saveSuccess: '', saveError: '',
+
     async init() {
       try {
         const [settings, sub] = await Promise.all([
           api('/org/settings'),
-          api('/org/subscription').catch(() => ({ data: {} }))
+          api('/org/subscription').catch(() => null)
         ]);
         this.org  = settings.data ?? settings;
-        this.subscription = sub.data ?? sub;
-        this.form = {
-          name:          this.org.name || '',
-          slug:          this.org.slug || '',
-          contact_email: this.org.contact_email || ''
-        };
+
+        // Flatten subscription: API returns { plan:{name,scan_limit,...}, usage:{used,...} }
+        // but the view expects flat props like subscription.plan_name, subscription.status, etc.
+        if (sub) {
+          const raw = sub.data ?? sub;
+          const plan  = raw.plan  || {};
+          const usage = raw.usage || {};
+          this.subscription = {
+            plan_name:     plan.name    || null,
+            scan_limit:    plan.scan_limit ?? null,
+            price:         plan.price   || 0,
+            status:        plan.status  || 'inactive',
+            billing_cycle: plan.billing_cycle || null,
+            expires_at:    plan.end_date || null,
+            scans_used:    usage.used   || 0,
+          };
+        }
+        this._populateForm();
       } catch (e) { this.error = e.message; }
       finally { this.loading = false; }
     },
+
+    _populateForm() {
+      this.form = {
+        name:                this.org.name || '',
+        slug:                this.org.slug || '',
+        contact_email:       this.org.contact_email || '',
+        industry:            this.org.industry || '',
+        size:                this.org.size || '',
+        website:             this.org.website || '',
+        theme_color:         this.org.theme_color || '',
+        default_model:       this.org.default_model || '',
+        video_retention_days: this.org.video_retention_days ?? 30,
+        auto_delete_video:   !!this.org.auto_delete_video,
+      };
+    },
+
     async saveSettings() {
       this.saveSuccess = ''; this.saveError = ''; this.saving = true;
       try {
-        await api('/org/settings', { method: 'PUT', body: JSON.stringify({ name: this.form.name, contact_email: this.form.contact_email }) });
+        await api('/org/settings', { method: 'PUT', body: JSON.stringify(this.form) });
         this.saveSuccess = 'Settings saved successfully.';
+        // Apply theme color immediately
+        if (this.form.theme_color) {
+          document.documentElement.style.setProperty('--we-primary', this.form.theme_color);
+        }
       } catch (e) { this.saveError = e.message; }
       finally { this.saving = false; }
     },
     resetForm() {
-      this.form = {
-        name:          this.org.name || '',
-        slug:          this.org.slug || '',
-        contact_email: this.org.contact_email || ''
-      };
+      this._populateForm();
       this.saveSuccess = ''; this.saveError = '';
     },
     fmtDate(d) { return d ? new Date(d).toLocaleDateString() : '—'; }
+  }));
+
+  /* ── Admin System Settings page ──────────────────────────────────────── */
+  Alpine.data('adminSettingsPage', () => ({
+    loading: true, saving: false,
+    saveSuccess: '', saveError: '',
+    showSecret: false,
+    form: {
+      app_name: '', support_email: '', allow_registrations: true,
+      payment_gateway: '', payment_public_key: '', payment_secret_key: '',
+    },
+    _original: {},
+
+    async init() {
+      try {
+        const res = await api('/admin/settings');
+        const data = res.data ?? res;
+        this.form = {
+          app_name:            data.app_name || '',
+          support_email:       data.support_email || '',
+          allow_registrations: data.allow_registrations ?? true,
+          payment_gateway:     data.payment_gateway || '',
+          payment_public_key:  data.payment_public_key || '',
+          payment_secret_key:  data.payment_secret_key || '',
+        };
+        this._original = { ...this.form };
+      } catch (e) { this.saveError = e.message; }
+      finally { this.loading = false; }
+    },
+
+    async saveSettings() {
+      this.saveSuccess = ''; this.saveError = ''; this.saving = true;
+      try {
+        await api('/admin/settings', { method: 'PUT', body: JSON.stringify(this.form) });
+        this.saveSuccess = 'System settings saved successfully.';
+        this._original = { ...this.form };
+      } catch (e) { this.saveError = e.message; }
+      finally { this.saving = false; }
+    },
+
+    resetForm() {
+      this.form = { ...this._original };
+      this.saveSuccess = ''; this.saveError = '';
+    }
+  }));
+
+  /* ── Notifications dropdown ─────────────────────────────────────────── */
+  Alpine.data('notificationsDropdown', () => ({
+    open: false, loading: false,
+    items: [], unreadCount: 0,
+    _pollTimer: null,
+    _loaded: false,                       // true after first full load
+    init() {
+      this.fetchCount();
+      this._pollTimer = setInterval(() => this.fetchCount(), 60000);
+    },
+    destroy() { clearInterval(this._pollTimer); },
+    async fetchCount() {
+      try {
+        const d = await api('/notifications/unread-count');
+        this.unreadCount = d.count ?? 0;
+      } catch (_) { /* noop */ }
+    },
+    async toggle() {
+      this.open = !this.open;
+      if (this.open) {
+        if (!this._loaded) {
+          await this._fullLoad();         // first open — full fetch
+        } else {
+          await this._refreshNew();       // subsequent — only new items
+        }
+      }
+    },
+    /* Full load — runs once on first open */
+    async _fullLoad() {
+      this.loading = true;
+      try {
+        const data = await api('/notifications');
+        this.items = Array.isArray(data) ? data : (data.data ?? []);
+        this.unreadCount = this.items.filter(n => !parseInt(n.is_read)).length;
+        this._loaded = true;
+      } catch (_) { /* noop */ }
+      finally { this.loading = false; }
+    },
+    /* Incremental refresh — prepend new items & update count */
+    async _refreshNew() {
+      try {
+        const data = await api('/notifications');
+        const fresh = Array.isArray(data) ? data : (data.data ?? []);
+        const existingIds = new Set(this.items.map(n => String(n.id)));
+        const newItems = fresh.filter(n => !existingIds.has(String(n.id)));
+        if (newItems.length) {
+          this.items = [...newItems, ...this.items];
+        }
+        // Also sync read-status for existing items
+        const freshMap = new Map(fresh.map(n => [String(n.id), n]));
+        this.items.forEach(n => {
+          const f = freshMap.get(String(n.id));
+          if (f) n.is_read = f.is_read;
+        });
+        this.unreadCount = this.items.filter(n => !parseInt(n.is_read)).length;
+      } catch (_) { /* noop */ }
+    },
+    async markRead(n) {
+      if (parseInt(n.is_read)) return;
+      n.is_read = '1';
+      this.unreadCount = Math.max(0, this.unreadCount - 1);
+      try { await api('/notifications/' + n.id + '/read', { method: 'PUT' }); } catch (_) {}
+    },
+    async markAllRead() {
+      this.items.forEach(n => n.is_read = '1');
+      this.unreadCount = 0;
+      try { await api('/notifications/read-all', { method: 'PUT' }); } catch (_) {}
+    },
+    notifIcon(type) {
+      const map = { scan_complete: 'bi-check-circle', high_risk: 'bi-exclamation-triangle', observer_rated: 'bi-pencil-square', member_joined: 'bi-person-plus', plan_changed: 'bi-box', announcement: 'bi-megaphone' };
+      return map[type] || 'bi-bell';
+    },
+    notifIconClass(type) {
+      const map = { scan_complete: 'success', high_risk: 'danger', observer_rated: 'info', member_joined: 'primary', plan_changed: 'warning', announcement: 'primary' };
+      return 'notif-icon-' + (map[type] || 'secondary');
+    },
+    timeAgo(dateStr) {
+      const s = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
+      if (s < 60) return 'just now';
+      const m = Math.floor(s / 60);
+      if (m < 60) return m + 'm ago';
+      const h = Math.floor(m / 60);
+      if (h < 24) return h + 'h ago';
+      const d = Math.floor(h / 24);
+      return d + 'd ago';
+    }
   }));
 
   /* ── Org Billing page ─────────────────────────────────────────────────── */

@@ -140,6 +140,8 @@ return static function (FastRoute\RouteCollector $r) use ($view, $auth, $guest):
 
     // ── App pages (any authenticated user) ────────────────────────────
     $r->addRoute('GET', '/dashboard',         $auth('views/dashboard/index.php'));
+    $r->addRoute('GET', '/profile',           $auth('views/user/profile.php'));
+    $r->addRoute('GET', '/observer-rating',   $auth('views/observer/rate.php'));
     $r->addRoute('GET', '/tasks',             $auth('views/tasks/index.php'));
     $r->addRoute('GET', '/tasks/{id:\d+}',    $auth('views/tasks/view.php'));
     $r->addRoute('GET', '/scans/new-manual',  $auth('views/scans/new-manual.php'));
@@ -153,6 +155,7 @@ return static function (FastRoute\RouteCollector $r) use ($view, $auth, $guest):
     $r->addRoute('GET', '/admin/organizations', $auth('views/admin/organizations.php', ['admin']));
     $r->addRoute('GET', '/admin/users',         $auth('views/admin/users.php', ['admin']));
     $r->addRoute('GET', '/admin/plans',         $auth('views/admin/plans.php', ['admin']));
+    $r->addRoute('GET', '/admin/settings',      $auth('views/admin/settings.php', ['admin']));
 
     // ── Org management (admin + supervisor) ───────────────────────────
     $r->addRoute('GET', '/org/users',    $auth('views/org/users.php', ['admin', 'supervisor']));

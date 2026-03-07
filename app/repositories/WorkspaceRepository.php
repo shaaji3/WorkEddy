@@ -14,7 +14,7 @@ final class WorkspaceRepository
     public function findById(int $organizationId): array
     {
         $row = $this->db->fetchAssociative(
-            'SELECT id, name, slug, contact_email, plan, status, created_at, updated_at
+            'SELECT id, name, slug, contact_email, plan, settings, status, created_at, updated_at
              FROM organizations WHERE id = :id LIMIT 1',
             ['id' => $organizationId]
         );
@@ -88,7 +88,7 @@ final class WorkspaceRepository
         $sets   = [];
         $params = ['id' => $id];
 
-        foreach (['name', 'slug', 'contact_email'] as $col) {
+        foreach (['name', 'slug', 'contact_email', 'settings'] as $col) {
             if (array_key_exists($col, $data)) {
                 $sets[]       = "$col = :$col";
                 $params[$col] = $data[$col];

@@ -6,8 +6,33 @@ services:
     volumes:
       - ./infrastructure/docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - ./public:/var/www/html/public:ro
+      - storage_data:/storage:ro
     depends_on:
       - api
+
+  # ── One-shot: run migrations then seed (exits when done) ──────────────────
+  migrate:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/php.dockerfile
+    working_dir: /var/www/html
+    volumes:
+      - .:/var/www/html
+      - vendor_data:/var/www/html/vendor
+      - storage_data:/storage
+    env_file: .env
+    environment:
+      APP_ENV: local
+      DB_HOST: mysql
+      DB_PORT: 3306
+    command:
+      - sh
+      - -c
+      - "mkdir -p /storage/uploads/videos /storage/uploads/frames /storage/uploads/processed /storage/uploads/reports /storage/temp /storage/logs /storage/exports && chmod -R 777 /storage && php scripts/migrate.php migrate && php scripts/seed.php run"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: "no"
 
   api:
     build:
@@ -30,6 +55,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
+      migrate:
+        condition: service_completed_successfully
 
   worker:
     build:
@@ -62,7 +89,6 @@ services:
       - "3307:3306"
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./database/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "workeddy", "-pworkeddy"]
       interval: 10s
@@ -82,3 +108,4 @@ volumes:
   mysql_data:
   vendor_data:    # PHP Composer dependencies (built inside image, not overridden by host)
   storage_data:   # Shared upload/processed file storage (api writes, worker reads)
+

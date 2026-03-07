@@ -17,13 +17,39 @@ final class OrgService
 
     /* ── Settings ─────────────────────────────────────────────────────── */
 
+    /** Keys stored inside the JSON `settings` column. */
+    private const SETTINGS_KEYS = [
+        'industry', 'size', 'website', 'theme_color',
+        'video_retention_days', 'auto_delete_video', 'default_model',
+    ];
+
     public function getSettings(int $orgId): array
     {
-        return $this->workspaceRepo->findById($orgId);
+        $org = $this->workspaceRepo->findById($orgId);
+
+        // Decode JSON settings and merge into the flat org array
+        $json = [];
+        if (!empty($org['settings'])) {
+            $json = is_string($org['settings'])
+                ? (json_decode($org['settings'], true) ?: [])
+                : (array) $org['settings'];
+        }
+        unset($org['settings']);
+
+        foreach (self::SETTINGS_KEYS as $key) {
+            $org[$key] = $json[$key] ?? null;
+        }
+
+        // Add member count
+        $members = $this->userRepo->listByOrganization($orgId);
+        $org['member_count'] = count($members);
+
+        return $org;
     }
 
     public function updateSettings(int $orgId, array $data): void
     {
+        // Core org columns
         $allowed  = ['name', 'slug', 'contact_email'];
         $filtered = array_intersect_key($data, array_flip($allowed));
 
@@ -32,6 +58,25 @@ final class OrgService
                 strtolower(preg_replace('/[^a-zA-Z0-9]+/', '-', trim($filtered['name']))),
                 '-'
             );
+        }
+
+        // Build JSON settings payload (merge with existing)
+        $existing = $this->workspaceRepo->findById($orgId);
+        $current  = [];
+        if (!empty($existing['settings'])) {
+            $current = is_string($existing['settings'])
+                ? (json_decode($existing['settings'], true) ?: [])
+                : (array) $existing['settings'];
+        }
+        $changed = false;
+        foreach (self::SETTINGS_KEYS as $key) {
+            if (array_key_exists($key, $data)) {
+                $current[$key] = $data[$key];
+                $changed = true;
+            }
+        }
+        if ($changed) {
+            $filtered['settings'] = json_encode($current, JSON_UNESCAPED_UNICODE);
         }
 
         $this->workspaceRepo->updateOrg($orgId, $filtered);

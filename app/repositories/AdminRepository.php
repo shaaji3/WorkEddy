@@ -190,6 +190,28 @@ final class AdminRepository
         $this->db->executeStatement('DELETE FROM plans WHERE id = :id', ['id' => $id]);
     }
 
+    /* ── System Settings ──────────────────────────────────────────────── */
+
+    public function getSystemSettings(): array
+    {
+        $rows = $this->db->fetchAllAssociative('SELECT key_name, value_data FROM system_settings ORDER BY key_name ASC');
+        $out  = [];
+        foreach ($rows as $row) {
+            $out[$row['key_name']] = json_decode($row['value_data'], true);
+        }
+        return $out;
+    }
+
+    public function upsertSystemSetting(string $key, mixed $value): void
+    {
+        $json = json_encode($value, JSON_UNESCAPED_UNICODE);
+        $this->db->executeStatement(
+            'INSERT INTO system_settings (key_name, value_data) VALUES (:k, :v)
+             ON DUPLICATE KEY UPDATE value_data = :v2',
+            ['k' => $key, 'v' => $json, 'v2' => $json]
+        );
+    }
+
     /* ── System Stats ─────────────────────────────────────────────────── */
 
     public function systemStats(): array

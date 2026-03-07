@@ -73,6 +73,11 @@ final class ScanService
         return $this->scans->listByOrganization($organizationId);
     }
 
+    public function listByTask(int $organizationId, int $taskId): array
+    {
+        return $this->scans->listByTask($organizationId, $taskId);
+    }
+
     /**
      * Compare a scan with its parent (repeat-scan comparison).
      *

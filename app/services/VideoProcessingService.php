@@ -27,7 +27,11 @@ final class VideoProcessingService
         }
 
         if (!is_dir(self::BASE_DIR)) {
-            @mkdir(self::BASE_DIR, 0775, true);
+            if (!mkdir(self::BASE_DIR, 0775, true) && !is_dir(self::BASE_DIR)) {
+                throw new \RuntimeException(
+                    'Cannot create upload directory: ' . self::BASE_DIR
+                );
+            }
         }
 
         $filename = uniqid('scan_', true) . '.' . $ext;

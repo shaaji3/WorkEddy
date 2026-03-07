@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 $pageTitle  = 'Scan Results';
 $activePage = 'scans';
 ob_start();
@@ -13,15 +13,31 @@ ob_start();
         <li class="breadcrumb-item active">Results</li>
       </ol>
     </div>
-    <a href="/tasks" class="btn btn-outline-secondary">
-      <i class="bi bi-arrow-left me-1"></i>Back
-    </a>
+    <div class="d-flex gap-2">
+      <a :href="'/observer-rating?scan_id=' + scanId" class="btn btn-outline-primary">
+        <i class="bi bi-eye me-1"></i>Observer Rating
+      </a>
+      <a href="/tasks" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i>Back
+      </a>
+    </div>
   </div>
 
   <!-- Processing banner -->
-  <div class="alert alert-info d-flex align-items-center gap-2" x-show="pending" x-cloak>
+  <div class="alert alert-info align-items-center gap-2"
+       x-show="pending" x-cloak style="display:none" :style="pending ? 'display:flex' : 'display:none'">
     <div class="spinner-border spinner-border-sm flex-shrink-0"></div>
-    <span><strong>Processing…</strong> Your video is being analysed. This page refreshes every 5 s.</span>
+    <span><strong>Processing…</strong> Your video is being analysed. Results will appear automatically.</span>
+  </div>
+
+  <!-- Invalid / Error banner -->
+  <div class="alert alert-danger align-items-start gap-2"
+       x-show="scanInvalid" x-cloak style="display:none" :style="scanInvalid ? 'display:flex' : 'display:none'">
+    <i class="bi bi-exclamation-triangle-fill flex-shrink-0 mt-1"></i>
+    <div>
+      <strong>Analysis Failed</strong>
+      <p class="mb-0 mt-1" x-text="errorMessage"></p>
+    </div>
   </div>
 
   <!-- Loading -->
@@ -31,8 +47,22 @@ ob_start();
 
   <div class="alert alert-danger" x-show="error && !loading" x-cloak x-text="error"></div>
 
+  <!-- Video Preview -->
+  <div class="card mb-4" x-show="scan && scan.video_path && !loading" x-cloak>
+    <div class="card-header d-flex align-items-center gap-2">
+      <i class="bi bi-camera-video text-primary"></i>
+      <h6 class="mb-0 fw-semibold">Uploaded Video</h6>
+    </div>
+    <div class="card-body p-0">
+      <video class="w-100 rounded-bottom" style="max-height:400px;background:#000" controls preload="metadata"
+             :src="'/storage/videos/' + scan.video_path.split('/').pop()">
+        Your browser does not support video playback.
+      </video>
+    </div>
+  </div>
+
   <!-- Results -->
-  <div x-show="scan && !loading" x-cloak>
+  <div x-show="scan && !loading && !scanInvalid" x-cloak>
 
     <div class="row g-4 mb-4">
 
@@ -69,8 +99,8 @@ ob_start();
               <dt class="col-sm-4 text-muted text-sm">Status</dt>
               <dd class="col-sm-8">
                 <span class="badge"
-                      :class="scan?.status === 'complete' ? 'badge-soft-success'
-                            : scan?.status === 'pending' ? 'badge-soft-warning'
+                      :class="scan?.status === 'completed' ? 'badge-soft-success'
+                            : scan?.status === 'processing' ? 'badge-soft-warning'
                             : 'badge-soft-secondary'"
                       x-text="scan?.status ?? '—'"></span>
               </dd>

@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /**
  * Main application layout – Sneat sidebar + fixed top navbar.
  *
@@ -45,10 +45,34 @@ $content    = $content    ?? '';
       $coreNav = [
         'dashboard' => ['/dashboard',        'bi-grid-1x2',  'Dashboard'],
         'tasks'     => ['/tasks',            'bi-list-task', 'Tasks'],
-        'scans'     => ['/scans/new-manual', 'bi-upc-scan',  'Scans'],
-        'observer'  => ['/observer-rating',  'bi-eye',       'Observer'],
+        'scans'     => ['',                  'bi-upc-scan',  'Scans'],
       ];
+      $scansActive = in_array($activePage, ['scans', 'scans-video']);
       foreach ($coreNav as $key => [$href, $icon, $label]):
+        if ($key === 'scans'): ?>
+        <li class="menu-item" x-data="{ open: <?= $scansActive ? 'true' : 'false' ?> }">
+          <button class="menu-link menu-toggle" @click="open = !open"
+                  :class="{ active: open }">
+            <i class="menu-icon bi bi-upc-scan"></i>
+            <span>Scans</span>
+            <i class="menu-chevron bi bi-chevron-right" :class="{ rotated: open }"></i>
+          </button>
+          <ul class="menu-sub list-unstyled" x-show="open">
+            <li class="menu-sub-item">
+              <a href="/scans/new-manual"
+                 class="menu-sub-link<?= $activePage === 'scans' ? ' active' : '' ?>">
+                <i class="bi bi-keyboard"></i> Manual Scan
+              </a>
+            </li>
+            <li class="menu-sub-item">
+              <a href="/scans/new-video"
+                 class="menu-sub-link<?= $activePage === 'scans-video' ? ' active' : '' ?>">
+                <i class="bi bi-camera-video"></i> Video Scan
+              </a>
+            </li>
+          </ul>
+        </li>
+      <?php else:
         $cls = ($activePage === $key) ? ' active' : '';
       ?>
         <li class="menu-item">
@@ -57,7 +81,7 @@ $content    = $content    ?? '';
             <span><?= $label ?></span>
           </a>
         </li>
-      <?php endforeach; ?>
+      <?php endif; endforeach; ?>
 
       <!-- Organisation section (supervisor +) -->
       <li class="menu-header"
@@ -94,6 +118,7 @@ $content    = $content    ?? '';
         'admin-orgs'      => ['/admin/organizations', 'bi-building',      'Organizations'],
         'admin-users'     => ['/admin/users',         'bi-people-fill',   'All Users'],
         'admin-plans'     => ['/admin/plans',         'bi-tags',          'Plans'],
+        'admin-settings'  => ['/admin/settings',      'bi-sliders',       'Settings'],
       ];
       foreach ($adminNav as $key => [$href, $icon, $label]):
         $cls = ($activePage === $key) ? ' active' : '';
@@ -138,9 +163,47 @@ $content    = $content    ?? '';
 
         <span class="plan-chip d-none d-sm-inline" id="planBadge">—</span>
 
-        <a class="navbar-icon-btn" href="#" title="Notifications">
-          <i class="bi bi-bell"></i>
-        </a>
+        <!-- Notifications dropdown -->
+        <div class="dropdown" x-data="notificationsDropdown" @click.outside="open = false">
+          <button class="navbar-icon-btn border-0 position-relative" @click="toggle()" title="Notifications">
+            <i class="bi bi-bell"></i>
+            <span class="notif-badge" x-show="unreadCount > 0" x-text="unreadCount > 9 ? '9+' : unreadCount" x-cloak></span>
+          </button>
+          <div class="dropdown-menu dropdown-menu-end dropdown-menu-notifications shadow-lg"
+               :class="{ show: open }">
+            <div class="notif-header">
+              <span class="fw-semibold">Notifications</span>
+              <button class="btn btn-link btn-sm text-muted p-0" @click="markAllRead()"
+                      x-show="unreadCount > 0" style="font-size:.8rem;text-decoration:none">
+                Mark all read
+              </button>
+            </div>
+            <div class="notif-body">
+              <template x-if="loading">
+                <div class="text-center py-4 text-muted"><i class="bi bi-arrow-repeat spin"></i> Loading…</div>
+              </template>
+              <template x-if="!loading && items.length === 0">
+                <div class="text-center py-4 text-muted">
+                  <i class="bi bi-bell-slash d-block mb-1" style="font-size:1.5rem"></i>
+                  <span class="small">No notifications yet</span>
+                </div>
+              </template>
+              <template x-for="n in items" :key="n.id">
+                <a class="notif-item" :class="{ unread: !parseInt(n.is_read) }"
+                   :href="n.link || '#'" @click="markRead(n)">
+                  <div class="notif-icon" :class="notifIconClass(n.type)">
+                    <i class="bi" :class="notifIcon(n.type)"></i>
+                  </div>
+                  <div class="notif-content">
+                    <p class="notif-title" x-text="n.title"></p>
+                    <p class="notif-body-text" x-show="n.body" x-text="n.body"></p>
+                    <span class="notif-time" x-text="timeAgo(n.created_at)"></span>
+                  </div>
+                </a>
+              </template>
+            </div>
+          </div>
+        </div>
 
         <!-- User dropdown -->
         <div class="dropdown">
@@ -153,8 +216,8 @@ $content    = $content    ?? '';
               <p class="mb-1 text-capitalize text-muted text-xs" id="ddUserRole">—</p>
             </li>
             <li><hr class="dropdown-divider my-1"></li>
-            <li><a class="dropdown-item" href="/org/settings">
-              <i class="bi bi-gear me-2 text-muted"></i>Settings</a></li>
+            <li><a class="dropdown-item" href="/profile">
+              <i class="bi bi-person me-2 text-muted"></i>My Profile</a></li>
             <li><a class="dropdown-item" href="/org/billing">
               <i class="bi bi-credit-card me-2 text-muted"></i>Billing</a></li>
             <li><hr class="dropdown-divider my-1"></li>
@@ -184,17 +247,37 @@ $content    = $content    ?? '';
   $mobileNav = [
     'dashboard'    => ['/dashboard',        'bi-grid-1x2',  'Home'],
     'tasks'        => ['/tasks',            'bi-list-task', 'Tasks'],
-    'scans'        => ['/scans/new-manual', 'bi-upc-scan',  'Scans'],
-    'org-settings' => ['/org/settings',     'bi-gear',      'Settings'],
+    'scans'        => ['',                  'bi-upc-scan',  'Scans'],
+    'profile'      => ['/profile',          'bi-person',    'Profile'],
   ];
   foreach ($mobileNav as $key => [$href, $icon, $label]):
+    if ($key === 'scans'):
+      $scanActive = in_array($activePage, ['scans', 'scans-video']);
+  ?>
+    <div class="bottom-nav-item-wrap" x-data="{ open: false }">
+      <div class="scan-sheet-backdrop" x-show="open" @click="open = false" x-cloak></div>
+      <div class="scan-sheet" x-show="open" x-cloak>
+        <a href="/scans/new-manual" class="scan-sheet-item">
+          <i class="bi bi-keyboard"></i> Manual Scan
+        </a>
+        <a href="/scans/new-video" class="scan-sheet-item">
+          <i class="bi bi-camera-video"></i> Video Scan
+        </a>
+      </div>
+      <button class="bottom-nav-item<?= $scanActive ? ' active' : '' ?> border-0 bg-transparent p-0"
+              @click.stop="open = !open">
+        <i class="bi bi-upc-scan"></i>
+        <span>Scans</span>
+      </button>
+    </div>
+  <?php else:
     $cls = ($activePage === $key) ? ' active' : '';
   ?>
     <a href="<?= $href ?>" class="bottom-nav-item<?= $cls ?>">
       <i class="bi <?= $icon ?>"></i>
       <span><?= $label ?></span>
     </a>
-  <?php endforeach; ?>
+  <?php endif; endforeach; ?>
 </nav>
 
 <!-- Toast container -->

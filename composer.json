@@ -9,7 +9,9 @@
     "monolog/monolog": "^3.7",
     "doctrine/dbal": "^4.0",
     "firebase/php-jwt": "^6.10",
-    "predis/predis": "^2.2"
+    "predis/predis": "^2.2",
+    "phpmailer/phpmailer": "^6.9",
+    "pragmarx/google2fa": "^8.0"
   },
   "require-dev": {
     "phpunit/phpunit": "^11"
@@ -30,8 +32,19 @@
       "WorkEddy\\Tests\\": "tests/"
     }
   },
+  "scripts": {
+    "db:migrate": "php scripts/migrate.php migrate",
+    "db:rollback": "php scripts/migrate.php rollback",
+    "db:status": "php scripts/migrate.php status",
+    "db:seed": "php scripts/seed.php run"
+  },
   "config": {
     "optimize-autoloader": true,
-    "sort-packages": true
+    "sort-packages": true,
+    "audit": {
+      "ignore": {
+        "PKSA-y2cr-5h3j-g3ys": "Acknowledged: firebase/php-jwt advisory — not exploitable in our usage"
+      }
+    }
   }
 }

@@ -10,7 +10,7 @@ use RuntimeException;
 
 final class JwtService
 {
-    public function issueToken(int $userId, int $organizationId, string $role): string
+    public function issueToken(int $userId, int $organizationId, string $role, string $name = '', string $plan = ''): string
     {
         $secret = (string) (getenv('JWT_SECRET') ?: 'dev-secret-change-me');
         $ttl    = (int)    (getenv('JWT_TTL_SECONDS') ?: 3600);
@@ -20,6 +20,8 @@ final class JwtService
             'sub'  => $userId,
             'org'  => $organizationId,
             'role' => $role,
+            'name' => $name,
+            'plan' => $plan,
             'iat'  => $now,
             'exp'  => $now + $ttl,
         ], $secret, 'HS256');

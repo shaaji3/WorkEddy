@@ -17,7 +17,8 @@ final class ScanRepository
             'SELECT s.*,
                     sr.score   AS result_score,
                     sr.risk_level,
-                    sr.recommendation
+                    sr.recommendation,
+                    s.error_message
              FROM scans s
              LEFT JOIN scan_results sr ON sr.scan_id = s.id
              WHERE s.organization_id = :org_id AND s.id = :id LIMIT 1',
@@ -42,13 +43,29 @@ final class ScanRepository
         return $this->db->fetchAllAssociative(
             'SELECT s.id, s.organization_id, s.user_id, s.task_id, s.scan_type, s.model,
                     s.raw_score, s.normalized_score, s.risk_category,
-                    s.status, s.video_path, s.created_at,
+                    s.status, s.video_path, s.error_message, s.created_at,
                     sr.score AS result_score, sr.risk_level, sr.recommendation
              FROM scans s
              LEFT JOIN scan_results sr ON sr.scan_id = s.id
              WHERE s.organization_id = :org_id
              ORDER BY s.id DESC',
             ['org_id' => $organizationId]
+        );
+    }
+
+    public function listByTask(int $organizationId, int $taskId): array
+    {
+        return $this->db->fetchAllAssociative(
+            'SELECT s.id, s.organization_id, s.user_id, s.task_id, s.scan_type, s.model,
+                    s.raw_score, s.normalized_score, s.risk_category,
+                    s.status, s.video_path, s.error_message, s.created_at,
+                    sr.score AS result_score, sr.risk_level, sr.recommendation
+             FROM scans s
+             LEFT JOIN scan_results sr ON sr.scan_id = s.id
+             WHERE s.organization_id = :org_id
+               AND s.task_id = :task_id
+             ORDER BY s.id DESC',
+            ['org_id' => $organizationId, 'task_id' => $taskId]
         );
     }
 

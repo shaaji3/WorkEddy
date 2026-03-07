@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 $pageTitle  = 'Billing';
 $activePage = 'billing';
 ob_start();
@@ -117,12 +117,13 @@ ob_start();
     <h6 class="fw-semibold mb-3 text-muted">Available Plans</h6>
 
     <!-- Alert -->
-    <div class="alert alert-success d-flex align-items-center gap-2 py-2 mb-3"
-         x-show="changeSuccess" x-cloak x-transition>
+    <div class="alert alert-success align-items-center gap-2 py-2 mb-3"
+         x-show="changeSuccess" x-cloak x-transition style="display:none"
+         :style="changeSuccess ? 'display:flex' : 'display:none'">
       <i class="bi bi-check-circle-fill"></i>Plan changed successfully.
     </div>
     <div class="alert alert-danger py-2 mb-3"
-         x-show="changeError" x-text="changeError" x-cloak x-transition></div>
+         x-show="changeError" x-text="changeError" x-cloak x-transition style="display:none"></div>
 
     <!-- Plans grid -->
     <div class="row g-3" x-show="plans.length > 0">

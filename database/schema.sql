@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS organizations (
     slug          VARCHAR(255)    NULL,
     contact_email VARCHAR(255)    NULL,
     plan          VARCHAR(100)    NOT NULL DEFAULT 'starter',
+    settings      JSON            NULL,
     status        ENUM('active','inactive','suspended') NOT NULL DEFAULT 'active',
     created_at    DATETIME        NOT NULL,
     updated_at    DATETIME        NULL
@@ -20,6 +21,11 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash   VARCHAR(255)    NOT NULL,
     role            ENUM('admin','supervisor','worker','observer') NOT NULL,
     status          ENUM('active','inactive','invited') NOT NULL DEFAULT 'active',
+    email_verified  TINYINT(1)      NOT NULL DEFAULT 0,
+    email_otp       VARCHAR(10)     NULL,
+    email_otp_expires_at DATETIME   NULL,
+    two_factor_enabled TINYINT(1)   NOT NULL DEFAULT 0,
+    two_factor_secret  VARCHAR(255) NULL,
     created_at      DATETIME        NOT NULL,
     updated_at      DATETIME        NULL,
     CONSTRAINT fk_users_org FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
@@ -69,6 +75,7 @@ CREATE TABLE IF NOT EXISTS scans (
     risk_category    ENUM('low','moderate','high') NOT NULL DEFAULT 'low',
     parent_scan_id   BIGINT UNSIGNED NULL,
     status           ENUM('created','processing','completed','invalid') NOT NULL DEFAULT 'completed',
+    error_message    TEXT            NULL,
     video_path       VARCHAR(1024)   NULL,
     created_at       DATETIME        NOT NULL,
     CONSTRAINT fk_scans_org    FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
@@ -164,12 +171,26 @@ CREATE TABLE IF NOT EXISTS usage_records (
     CONSTRAINT fk_usage_scan FOREIGN KEY (scan_id)         REFERENCES scans(id)         ON DELETE CASCADE
 );
 
--- Seed default plans (idempotent)
-INSERT INTO plans (name, scan_limit, price)
-SELECT 'starter',      100,  99.00  FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM plans WHERE name = 'starter');
+CREATE TABLE IF NOT EXISTS notifications (
+    id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    organization_id BIGINT UNSIGNED NOT NULL,
+    user_id         BIGINT UNSIGNED NULL,
+    type            VARCHAR(50)     NOT NULL,
+    title           VARCHAR(255)    NOT NULL,
+    body            TEXT            NULL,
+    link            VARCHAR(512)    NULL,
+    is_read         TINYINT(1)      NOT NULL DEFAULT 0,
+    created_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_notifications_org  FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+    CONSTRAINT fk_notifications_user FOREIGN KEY (user_id)         REFERENCES users(id)         ON DELETE SET NULL,
+    INDEX idx_notifications_org_read (organization_id, is_read, created_at DESC)
+);
 
-INSERT INTO plans (name, scan_limit, price)
-SELECT 'professional', 500,  299.00 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM plans WHERE name = 'professional');
 
-INSERT INTO plans (name, scan_limit, price)
-SELECT 'enterprise',   NULL, 999.00 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM plans WHERE name = 'enterprise');
+-- Global platform settings (key-value, used by super admin)
+CREATE TABLE IF NOT EXISTS system_settings (
+    key_name   VARCHAR(255) NOT NULL PRIMARY KEY,
+    value_data JSON         NOT NULL
+);
+
+-- Seed data moved to database/seeders. Run: php scripts/seed.php run

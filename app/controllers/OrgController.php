@@ -17,7 +17,7 @@ final class OrgController
 
     public function getSettings(array $claims): never
     {
-        Auth::requireRoles($claims, ['admin', 'supervisor']);
+        // All authenticated users can read org settings (used by layout for theme binding)
         Response::json(['data' => $this->orgService->getSettings(Auth::orgId($claims))]);
     }
 

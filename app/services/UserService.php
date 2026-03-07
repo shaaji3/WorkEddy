@@ -43,4 +43,30 @@ final class UserService
     {
         return $this->users->findById($userId);
     }
+
+    /* ── Profile ──────────────────────────────────────────────────────── */
+
+    public function getProfile(int $userId): array
+    {
+        $user = $this->users->findById($userId);
+        if (!$user) {
+            throw new \RuntimeException('User not found');
+        }
+        // Strip sensitive fields
+        unset($user['two_factor_secret']);
+        return $user;
+    }
+
+    public function updateProfile(int $userId, string $name, string $email): array
+    {
+        if (trim($name) === '') {
+            throw new \RuntimeException('Name is required');
+        }
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            throw new \RuntimeException('Invalid email address');
+        }
+        $this->users->updateProfile($userId, trim($name), $email);
+
+        return $this->getProfile($userId);
+    }
 }

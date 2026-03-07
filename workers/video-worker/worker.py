@@ -127,6 +127,9 @@ def process_scan_job(job: dict, conn: pymysql.connections.Connection) -> None:
         )
 
 
-def mark_scan_invalid(scan_id: int, conn: pymysql.connections.Connection) -> None:
+def mark_scan_invalid(scan_id: int, conn: pymysql.connections.Connection, error_message: str = '') -> None:
     with conn.cursor() as cursor:
-        cursor.execute("UPDATE scans SET status = 'invalid' WHERE id = %s", (scan_id,))
+        cursor.execute(
+            "UPDATE scans SET status = 'invalid', error_message = %s WHERE id = %s",
+            (error_message or 'Processing failed', scan_id),
+        )

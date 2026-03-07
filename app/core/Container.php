@@ -9,13 +9,16 @@ use WorkEddy\Controllers\AdminController;
 use WorkEddy\Controllers\AuthController;
 use WorkEddy\Controllers\BillingController;
 use WorkEddy\Controllers\DashboardController;
+use WorkEddy\Controllers\NotificationController;
 use WorkEddy\Controllers\ObserverController;
 use WorkEddy\Controllers\OrgController;
+use WorkEddy\Controllers\ProfileController;
 use WorkEddy\Controllers\ScanController;
 use WorkEddy\Controllers\TaskController;
 use WorkEddy\Controllers\WorkspaceController;
 use WorkEddy\Middleware\AuthMiddleware;
 use WorkEddy\Repositories\AdminRepository;
+use WorkEddy\Repositories\NotificationRepository;
 use WorkEddy\Repositories\ScanRepository;
 use WorkEddy\Repositories\TaskRepository;
 use WorkEddy\Repositories\UserRepository;
@@ -24,8 +27,10 @@ use WorkEddy\Services\AdminService;
 use WorkEddy\Services\AuthService;
 use WorkEddy\Services\BillingService;
 use WorkEddy\Services\DashboardService;
+use WorkEddy\Services\EmailService;
 use WorkEddy\Services\Ergonomics\AssessmentEngine;
 use WorkEddy\Services\JwtService;
+use WorkEddy\Services\NotificationService;
 use WorkEddy\Services\ObserverService;
 use WorkEddy\Services\OrgService;
 use WorkEddy\Services\QueueService;
@@ -80,6 +85,11 @@ final class Container
         return $this->make('adminRepo', fn () => new AdminRepository($this->db()));
     }
 
+    public function notificationRepo(): NotificationRepository
+    {
+        return $this->make('notificationRepo', fn () => new NotificationRepository($this->db()));
+    }
+
     // ─── Services ─────────────────────────────────────────────────────
 
     public function jwt(): JwtService
@@ -107,12 +117,18 @@ final class Container
         return $this->make('videoService', fn () => new VideoProcessingService());
     }
 
+    public function emailService(): EmailService
+    {
+        return $this->make('emailService', fn () => new EmailService());
+    }
+
     public function authService(): AuthService
     {
         return $this->make('authService', fn () => new AuthService(
             $this->userRepo(),
             $this->workspaceRepo(),
             $this->jwt(),
+            $this->emailService(),
         ));
     }
 
@@ -150,6 +166,11 @@ final class Container
     public function billingService(): BillingService
     {
         return $this->make('billingService', fn () => new BillingService($this->workspaceRepo()));
+    }
+
+    public function notificationService(): NotificationService
+    {
+        return $this->make('notificationService', fn () => new NotificationService($this->notificationRepo()));
     }
 
     public function adminService(): AdminService
@@ -229,6 +250,16 @@ final class Container
     public function orgCtrl(): OrgController
     {
         return $this->make('orgCtrl', fn () => new OrgController($this->orgService()));
+    }
+
+    public function notificationCtrl(): NotificationController
+    {
+        return $this->make('notificationCtrl', fn () => new NotificationController($this->notificationService()));
+    }
+
+    public function profileCtrl(): ProfileController
+    {
+        return $this->make('profileCtrl', fn () => new ProfileController($this->userService()));
     }
 
     // ─── Internal ─────────────────────────────────────────────────────

@@ -133,6 +133,27 @@ final class AdminService
         $this->adminRepo->deletePlan($id);
     }
 
+    /* ── System Settings ─────────────────────────────────────────────── */
+
+    private const SYSTEM_KEYS = [
+        'app_name', 'support_email', 'allow_registrations',
+        'payment_gateway', 'payment_public_key', 'payment_secret_key',
+    ];
+
+    public function getSystemSettings(): array
+    {
+        return $this->adminRepo->getSystemSettings();
+    }
+
+    public function updateSystemSettings(array $data): void
+    {
+        foreach (self::SYSTEM_KEYS as $key) {
+            if (array_key_exists($key, $data)) {
+                $this->adminRepo->upsertSystemSetting($key, $data[$key]);
+            }
+        }
+    }
+
     /* ── System Stats ─────────────────────────────────────────────────── */
 
     public function systemStats(): array

@@ -2,86 +2,149 @@
 
 declare(strict_types=1);
 
-/**
- * Development seed script.
- * Creates a demo organization, admin user, and sample tasks.
- *
- * Usage: php scripts/seed.php
- */
 require __DIR__ . '/../bootstrap.php';
 
+use Doctrine\DBAL\Connection;
 use WorkEddy\Core\Database;
+use WorkEddy\Core\SqlScriptRunner;
 
-$db = Database::connection();
+const SEEDERS_DIR = __DIR__ . '/../database/seeders';
 
-echo "Seeding demo data...\n";
+$command = strtolower((string) ($argv[1] ?? 'run'));
+$filter = $argv[2] ?? null;
 
-// ─── Organization ─────────────────────────────────────────────────────────────
-$existing = $db->fetchAssociative("SELECT id FROM organizations WHERE name = 'Demo Warehouse' LIMIT 1");
-if ($existing) {
-    $orgId = (int) $existing['id'];
-    echo "  Organization already exists (id={$orgId})\n";
-} else {
-    $db->executeStatement(
-        "INSERT INTO organizations (name, plan, created_at) VALUES ('Demo Warehouse', 'professional', NOW())"
-    );
-    $orgId = (int) $db->lastInsertId();
-    echo "  Created organization id={$orgId}\n";
-}
+try {
+    $db = Database::connection();
+    $seeders = discoverSeeders(SEEDERS_DIR);
 
-// ─── Subscription ─────────────────────────────────────────────────────────────
-$plan = $db->fetchAssociative("SELECT id FROM plans WHERE name = 'professional' LIMIT 1");
-if ($plan) {
-    $subExists = $db->fetchAssociative(
-        "SELECT id FROM subscriptions WHERE organization_id = :org_id LIMIT 1",
-        ['org_id' => $orgId]
-    );
-    if (!$subExists) {
-        $db->executeStatement(
-            "INSERT INTO subscriptions (organization_id, plan_id, start_date, status, created_at) VALUES (:org_id, :plan_id, CURRENT_DATE(), 'active', NOW())",
-            ['org_id' => $orgId, 'plan_id' => (int) $plan['id']]
-        );
-        echo "  Created professional subscription\n";
+    if ($command === 'demo') {
+        $command = 'run';
+        $filter = 'demo';
     }
-}
 
-// ─── Admin user ───────────────────────────────────────────────────────────────
-$adminEmail = 'admin@demo.workeddy.com';
-$existingUser = $db->fetchAssociative("SELECT id FROM users WHERE email = :email LIMIT 1", ['email' => $adminEmail]);
-if ($existingUser) {
-    echo "  Admin user already exists\n";
-} else {
-    $db->executeStatement(
-        "INSERT INTO users (organization_id, name, email, password_hash, role, created_at) VALUES (:org_id, :name, :email, :hash, 'admin', NOW())",
-        [
-            'org_id' => $orgId,
-            'name'   => 'Demo Admin',
-            'email'  => $adminEmail,
-            'hash'   => password_hash('Password1!', PASSWORD_BCRYPT),
-        ]
-    );
-    echo "  Created admin user: {$adminEmail} / Password1!\n";
-}
-
-// ─── Sample tasks ─────────────────────────────────────────────────────────────
-$sampleTasks = [
-    ['Pallet lifting – Zone A',    'Lifting pallets from floor to waist height',  'Receiving'],
-    ['Order picking – Lane C',     'Picking individual items from shelving units', 'Fulfillment'],
-    ['Outbound loading – Bay 2',   'Loading vehicles at the outbound loading bay', 'Shipping'],
-];
-
-foreach ($sampleTasks as [$name, $desc, $dept]) {
-    $exists = $db->fetchAssociative(
-        "SELECT id FROM tasks WHERE organization_id = :org_id AND name = :name LIMIT 1",
-        ['org_id' => $orgId, 'name' => $name]
-    );
-    if (!$exists) {
-        $db->executeStatement(
-            "INSERT INTO tasks (organization_id, name, description, department, created_at) VALUES (:org_id, :name, :desc, :dept, NOW())",
-            ['org_id' => $orgId, 'name' => $name, 'desc' => $desc, 'dept' => $dept]
-        );
-        echo "  Created task: {$name}\n";
+    if (is_string($filter) && $filter !== '') {
+        $seeders = array_values(array_filter(
+            $seeders,
+            static fn(array $seeder): bool => stripos($seeder['name'], $filter) !== false
+        ));
     }
+
+    switch ($command) {
+        case 'run':
+            runSeeders($db, $seeders);
+            break;
+
+        case 'status':
+        case 'list':
+            listSeeders($seeders);
+            break;
+
+        default:
+            usage($command);
+            exit(1);
+    }
+} catch (Throwable $e) {
+    fwrite(STDERR, '[seed-error] ' . $e->getMessage() . PHP_EOL);
+    exit(1);
 }
 
-echo "Seeding complete.\n";
+/**
+ * @return list<array{name: string, path: string, type: string}>
+ */
+function discoverSeeders(string $directory): array
+{
+    if (!is_dir($directory)) {
+        throw new \RuntimeException('Seeders directory not found: ' . $directory);
+    }
+
+    $seeders = [];
+
+    $sqlFiles = glob($directory . '/*.sql');
+    if ($sqlFiles === false) {
+        throw new \RuntimeException('Could not list SQL seeders in: ' . $directory);
+    }
+
+    $phpFiles = glob($directory . '/*.php');
+    if ($phpFiles === false) {
+        throw new \RuntimeException('Could not list PHP seeders in: ' . $directory);
+    }
+
+    foreach ($sqlFiles as $path) {
+        $seeders[] = ['name' => basename($path), 'path' => $path, 'type' => 'sql'];
+    }
+
+    foreach ($phpFiles as $path) {
+        $seeders[] = ['name' => basename($path), 'path' => $path, 'type' => 'php'];
+    }
+
+    usort(
+        $seeders,
+        static fn(array $a, array $b): int => strcmp($a['name'], $b['name'])
+    );
+
+    return $seeders;
+}
+
+/**
+ * @param list<array{name: string, path: string, type: string}> $seeders
+ */
+function runSeeders(Connection $db, array $seeders): void
+{
+    if ($seeders === []) {
+        echo "No seeders found for the current selection.\n";
+        return;
+    }
+
+    echo "Running seeders...\n";
+
+    foreach ($seeders as $seeder) {
+        echo 'Applying seeder ' . $seeder['name'] . " ...\n";
+
+        if ($seeder['type'] === 'sql') {
+            SqlScriptRunner::executeFile($db, $seeder['path']);
+        } elseif ($seeder['type'] === 'php') {
+            $callable = require $seeder['path'];
+            if (!is_callable($callable)) {
+                throw new \RuntimeException('Seeder file must return a callable: ' . $seeder['path']);
+            }
+
+            $callable($db);
+        } else {
+            throw new \RuntimeException('Unsupported seeder type: ' . $seeder['type']);
+        }
+
+        echo 'Applied seeder ' . $seeder['name'] . "\n";
+    }
+
+    echo 'Seeding complete. Applied ' . count($seeders) . " seeder(s).\n";
+}
+
+/**
+ * @param list<array{name: string, path: string, type: string}> $seeders
+ */
+function listSeeders(array $seeders): void
+{
+    if ($seeders === []) {
+        echo "No seeders found.\n";
+        return;
+    }
+
+    printf("%-32s %-6s\n", 'Seeder', 'Type');
+    printf("%-32s %-6s\n", str_repeat('-', 32), str_repeat('-', 6));
+
+    foreach ($seeders as $seeder) {
+        printf("%-32s %-6s\n", $seeder['name'], $seeder['type']);
+    }
+
+    echo 'Total seeders: ' . count($seeders) . "\n";
+}
+
+function usage(string $invalidCommand): void
+{
+    fwrite(STDERR, "Unknown command: {$invalidCommand}\n");
+    fwrite(STDERR, "Usage:\n");
+    fwrite(STDERR, "  php scripts/seed.php run [name-filter]\n");
+    fwrite(STDERR, "  php scripts/seed.php demo\n");
+    fwrite(STDERR, "  php scripts/seed.php status\n");
+}
+

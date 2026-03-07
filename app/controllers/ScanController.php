@@ -27,10 +27,14 @@ final class ScanController
         Response::json(['data' => $this->assessmentEngine->modelDescriptors()]);
     }
 
-    public function indexManual(array $claims): never
+    public function indexManual(array $claims, ?int $taskId = null): never
     {
         Auth::requireRoles($claims, ['admin', 'supervisor', 'worker', 'observer']);
-        Response::json(['data' => $this->scans->listByOrganization(Auth::orgId($claims))]);
+        $orgId = Auth::orgId($claims);
+        $data  = $taskId !== null
+            ? $this->scans->listByTask($orgId, $taskId)
+            : $this->scans->listByOrganization($orgId);
+        Response::json(['data' => $data]);
     }
 
     public function createManual(array $claims, array $body): never
@@ -58,6 +62,18 @@ final class ScanController
 
         if (empty($files['video'])) {
             Response::error('Missing video file', 422);
+        }
+
+        // Surface PHP upload errors as friendly messages
+        $uploadErr = $files['video']['error'] ?? UPLOAD_ERR_OK;
+        if ($uploadErr !== UPLOAD_ERR_OK) {
+            $msg = match ($uploadErr) {
+                UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE => 'Video exceeds the maximum allowed size (200 MB).',
+                UPLOAD_ERR_PARTIAL  => 'Upload was interrupted — please try again.',
+                UPLOAD_ERR_NO_FILE  => 'No video file was received.',
+                default             => 'Upload failed (error ' . $uploadErr . ').',
+            };
+            Response::error($msg, 422);
         }
 
         $model = $body['model'] ?? 'reba';

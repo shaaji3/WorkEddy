@@ -164,9 +164,28 @@ ob_start();
                   </td>
                   <td class="d-none d-md-table-cell text-muted" x-text="fmtDate(s.created_at)"></td>
                   <td class="text-end">
-                    <a :href="'/scans/' + s.id" class="btn btn-sm btn-outline-primary btn-icon" title="View">
-                      <i class="bi bi-arrow-right"></i>
-                    </a>
+                    <div class="dropdown">
+                      <button class="btn btn-sm btn-light" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="bi bi-three-dots-vertical"></i>
+                      </button>
+                      <ul class="dropdown-menu dropdown-menu-end">
+                        <li>
+                          <a class="dropdown-item" :href="'/scans/' + s.id">
+                            <i class="bi bi-eye me-2 text-muted"></i>View Results
+                          </a>
+                        </li>
+                        <li>
+                          <a class="dropdown-item" :href="'/observer-rating?scan_id=' + s.id">
+                            <i class="bi bi-person-check me-2 text-muted"></i>Observer Rating
+                          </a>
+                        </li>
+                        <li>
+                          <a class="dropdown-item" :href="'/scans/' + s.id + '/compare'">
+                            <i class="bi bi-bar-chart-steps me-2 text-muted"></i>Compare
+                          </a>
+                        </li>
+                      </ul>
+                    </div>
                   </td>
                 </tr>
               </template>

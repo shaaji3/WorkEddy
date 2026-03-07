@@ -31,13 +31,27 @@ return static function (Container $c): Closure {
             $c->auth();
             Response::json(['message' => 'Logged out']);
         });
-        $r->addRoute('GET', '/auth/me', function () use ($c) {
+        $r->addRoute('GET',  '/auth/me', function () use ($c) {
             Response::json(['user' => $c->auth()]);
         });
+        $r->addRoute('POST', '/auth/refresh', fn ($v, $b) => $c->authCtrl()->refresh($c->auth()));
+
+        // ── OTP & 2FA ─────────────────────────────────────────────────
+        $r->addRoute('POST', '/auth/send-otp',     fn ($v, $b) => $c->authCtrl()->sendOtp($b));
+        $r->addRoute('POST', '/auth/verify-otp',   fn ($v, $b) => $c->authCtrl()->verifyOtp($b));
+        $r->addRoute('POST', '/auth/2fa/verify',   fn ($v, $b) => $c->authCtrl()->verify2fa($c->auth(), $b));
+        $r->addRoute('GET',  '/auth/2fa/status',   fn ($v, $b) => $c->authCtrl()->get2faStatus($c->auth()));
+        $r->addRoute('POST', '/auth/2fa/setup',    fn ($v, $b) => $c->authCtrl()->setup2fa($c->auth()));
+        $r->addRoute('POST', '/auth/2fa/confirm',  fn ($v, $b) => $c->authCtrl()->confirm2fa($c->auth(), $b));
+        $r->addRoute('POST', '/auth/2fa/disable',  fn ($v, $b) => $c->authCtrl()->disable2fa($c->auth()));
 
         // ── Users ─────────────────────────────────────────────────────
         $r->addRoute('GET',  '/users', fn ($v, $b) => $c->workspaceCtrl()->listUsers($c->auth()));
         $r->addRoute('POST', '/users', fn ($v, $b) => $c->workspaceCtrl()->createUser($c->auth(), $b));
+
+        // ── User Profile ──────────────────────────────────────────────
+        $r->addRoute('GET',  '/user/profile', fn ($v, $b) => $c->profileCtrl()->getProfile($c->auth()));
+        $r->addRoute('PUT',  '/user/profile', fn ($v, $b) => $c->profileCtrl()->updateProfile($c->auth(), $b));
 
         // ── Tasks ─────────────────────────────────────────────────────
         $r->addRoute('GET',  '/tasks',              fn ($v, $b) => $c->taskCtrl()->index($c->auth()));
@@ -48,7 +62,7 @@ return static function (Container $c): Closure {
         $r->addRoute('GET',  '/scans/models',       fn ($v, $b) => $c->scanCtrl()->listModels());
         $r->addRoute('POST', '/scans/manual',       fn ($v, $b) => $c->scanCtrl()->createManual($c->auth(), $b));
         $r->addRoute('POST', '/scans/video',        fn ($v, $b) => $c->scanCtrl()->createVideo($c->auth(), $b, $_FILES));
-        $r->addRoute('GET',  '/scans',              fn ($v, $b) => $c->scanCtrl()->indexManual($c->auth()));
+        $r->addRoute('GET',  '/scans',              fn ($v, $b) => $c->scanCtrl()->indexManual($c->auth(), isset($_GET['task_id']) ? (int) $_GET['task_id'] : null));
         $r->addRoute('GET',  '/scans/{id:\d+}',     fn ($v, $b) => $c->scanCtrl()->show($c->auth(), (int) $v['id']));
         $r->addRoute('GET',  '/scans/{id:\d+}/compare', fn ($v, $b) => $c->scanCtrl()->compare($c->auth(), (int) $v['id']));
 
@@ -58,6 +72,13 @@ return static function (Container $c): Closure {
 
         // ── Dashboard ─────────────────────────────────────────────────
         $r->addRoute('GET', '/dashboard', fn ($v, $b) => $c->dashCtrl()->show($c->auth()));
+
+        // ── Notifications ─────────────────────────────────────────────
+        $r->addRoute('GET',  '/notifications',                  fn ($v, $b) => $c->notificationCtrl()->index($c->auth()));
+        $r->addRoute('GET',  '/notifications/unread-count',     fn ($v, $b) => $c->notificationCtrl()->unreadCount($c->auth()));
+        $r->addRoute('PUT',  '/notifications/read-all',         fn ($v, $b) => $c->notificationCtrl()->markAllRead($c->auth()));
+        $r->addRoute('PUT',  '/notifications/{id:\d+}/read',    fn ($v, $b) => $c->notificationCtrl()->markRead($c->auth(), (int) $v['id']));
+        $r->addRoute('POST', '/notifications/send',              fn ($v, $b) => $c->notificationCtrl()->send($c->auth(), $b));
 
         // ── Billing ───────────────────────────────────────────────────
         $r->addRoute('GET', '/billing/usage', fn ($v, $b) => $c->billingCtrl()->usage($c->auth()));
@@ -76,6 +97,8 @@ return static function (Container $c): Closure {
         $r->addRoute('POST',   '/admin/plans',                    fn ($v, $b) => $c->adminCtrl()->createPlan($c->auth(), $b));
         $r->addRoute('PUT',    '/admin/plans/{id:\d+}',           fn ($v, $b) => $c->adminCtrl()->updatePlan($c->auth(), (int) $v['id'], $b));
         $r->addRoute('DELETE', '/admin/plans/{id:\d+}',           fn ($v, $b) => $c->adminCtrl()->deletePlan($c->auth(), (int) $v['id']));
+        $r->addRoute('GET',    '/admin/settings',                 fn ($v, $b) => $c->adminCtrl()->getSystemSettings($c->auth()));
+        $r->addRoute('PUT',    '/admin/settings',                 fn ($v, $b) => $c->adminCtrl()->updateSystemSettings($c->auth(), $b));
 
         // ── Organization management (role: admin / supervisor) ────────
         $r->addRoute('GET',    '/org/settings',          fn ($v, $b) => $c->orgCtrl()->getSettings($c->auth()));

@@ -59,7 +59,8 @@ def run() -> None:
             except Exception as proc_error:  # noqa: BLE001
                 conn.rollback()
                 if "scan_id" in job:
-                    video_worker.mark_scan_invalid(int(job["scan_id"]), conn)
+                    err_msg = str(proc_error)
+                    video_worker.mark_scan_invalid(int(job["scan_id"]), conn, err_msg)
                     conn.commit()
                 raise proc_error
             finally:
