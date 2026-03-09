@@ -86,6 +86,126 @@ async function apiUpload(path, formData, onProgress) {
 function logout() { _clear(); location.href = '/login'; }
 
 /* ────────────────────────────────────────────────────────────────────────────
+ * System dialog helpers (replaces browser alert/confirm usage)
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+let _systemDialog = null;
+
+function _initSystemDialog() {
+  if (_systemDialog) return _systemDialog;
+
+  const modalEl = document.getElementById('systemUxDialogModal');
+  if (!modalEl || typeof bootstrap === 'undefined') return null;
+
+  const titleEl  = modalEl.querySelector('[data-dialog-title]');
+  const bodyEl   = modalEl.querySelector('[data-dialog-body]');
+  const iconEl   = modalEl.querySelector('[data-dialog-icon]');
+  const cancelEl = modalEl.querySelector('[data-dialog-cancel]');
+  const okEl     = modalEl.querySelector('[data-dialog-ok]');
+
+  const bsModal = new bootstrap.Modal(modalEl, {
+    backdrop: 'static',
+    keyboard: false,
+  });
+
+  _systemDialog = {
+    modalEl,
+    bsModal,
+    titleEl,
+    bodyEl,
+    iconEl,
+    cancelEl,
+    okEl,
+    active: null,
+  };
+
+  cancelEl?.addEventListener('click', () => {
+    if (!_systemDialog?.active) return;
+    const { resolve } = _systemDialog.active;
+    _systemDialog.active = null;
+    resolve(false);
+    _systemDialog.bsModal.hide();
+  });
+
+  okEl?.addEventListener('click', () => {
+    if (!_systemDialog?.active) return;
+    const { resolve } = _systemDialog.active;
+    _systemDialog.active = null;
+    resolve(true);
+    _systemDialog.bsModal.hide();
+  });
+
+  modalEl.addEventListener('hidden.bs.modal', () => {
+    if (_systemDialog?.active) {
+      const { resolve } = _systemDialog.active;
+      _systemDialog.active = null;
+      resolve(false);
+    }
+  });
+
+  return _systemDialog;
+}
+
+function _showSystemDialog({
+  mode = 'alert',
+  title = 'Notice',
+  message = '',
+  okText = 'OK',
+  cancelText = 'Cancel',
+  variant = 'primary',
+} = {}) {
+  const dlg = _initSystemDialog();
+
+  // Fallback for pages without the shared app layout/modal.
+  if (!dlg) {
+    console.warn('System dialog modal not found; dialog request skipped.');
+    return Promise.resolve(mode === 'confirm' ? false : true);
+  }
+
+  return new Promise(resolve => {
+    dlg.active = { resolve, mode };
+
+    if (dlg.titleEl) dlg.titleEl.textContent = title;
+    if (dlg.bodyEl) dlg.bodyEl.textContent = message;
+    if (dlg.okEl) {
+      dlg.okEl.textContent = okText;
+      dlg.okEl.className = 'btn btn-' + (variant || 'primary');
+    }
+    if (dlg.cancelEl) {
+      dlg.cancelEl.textContent = cancelText;
+      dlg.cancelEl.classList.toggle('d-none', mode !== 'confirm');
+    }
+    if (dlg.iconEl) {
+      const iconClass = mode === 'confirm' ? 'bi bi-question-circle text-warning' : 'bi bi-info-circle text-primary';
+      dlg.iconEl.className = iconClass;
+    }
+
+    dlg.bsModal.show();
+  });
+}
+
+window.appAlert = function appAlert(message, options = {}) {
+  return _showSystemDialog({
+    mode: 'alert',
+    title: options.title || 'Notice',
+    message: String(message ?? ''),
+    okText: options.okText || 'OK',
+    variant: options.variant || 'primary',
+  });
+};
+
+window.appConfirm = function appConfirm(message, options = {}) {
+  return _showSystemDialog({
+    mode: 'confirm',
+    title: options.title || 'Please Confirm',
+    message: String(message ?? ''),
+    okText: options.okText || 'Confirm',
+    cancelText: options.cancelText || 'Cancel',
+    variant: options.variant || 'danger',
+  });
+};
+
+/* ────────────────────────────────────────────────────────────────────────────
  * Alpine.js – Auth guard (runs on main layout)
  * ──────────────────────────────────────────────────────────────────────────── */
 
@@ -162,7 +282,7 @@ document.addEventListener('alpine:init', () => {
     async submit2fa() {
       this.error = ''; this.loading = true;
       try {
-        const d = await fetch('/api/auth/2fa/verify', {
+        const d = await fetch('/api/v1/auth/2fa/verify', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -326,7 +446,7 @@ document.addEventListener('alpine:init', () => {
 
   /* ── New manual scan page ─────────────────────────────────────────────── */
   Alpine.data('manualScanPage', () => ({
-    tasks: [], selectedTask: '',
+    tasks: [], selectedTask: '', parentScanId: null,
     model: 'reba',
     models: [],
     form: {
@@ -347,12 +467,16 @@ document.addEventListener('alpine:init', () => {
     async init() {
       const p = new URLSearchParams(location.search);
       const pre = p.get('task_id');
+      this.parentScanId = p.get('parent_scan_id');
+      const parentModel = p.get('parent_model');
       try {
         const [tasks, allModels] = await Promise.all([api('/tasks'), api('/scans/models')]);
         this.tasks = tasks;
         this.models = allModels.filter(m => m.input_types.includes('manual'));
       } catch (_) { /* skip */ }
-      if (this.models.length && !this.models.find(m => m.value === this.model)) {
+      if (parentModel && this.models.find(m => m.value === parentModel)) {
+        this.model = parentModel;
+      } else if (this.models.length && !this.models.find(m => m.value === this.model)) {
         this.model = this.models[0].value;
       }
       if (pre) this.selectedTask = pre;
@@ -362,6 +486,7 @@ document.addEventListener('alpine:init', () => {
       this.error = ''; this.loading = true;
       try {
         const payload = { task_id: this.selectedTask, model: this.model, ...this.form };
+        if (this.parentScanId) payload.parent_scan_id = this.parentScanId;
         const result = await api('/scans/manual', { method: 'POST', body: JSON.stringify(payload) });
         location.href = '/scans/' + result.id;
       } catch (e) { this.error = e.message; }
@@ -371,7 +496,7 @@ document.addEventListener('alpine:init', () => {
 
   /* ── New video scan page ──────────────────────────────────────────────── */
   Alpine.data('videoScanPage', () => ({
-    tasks: [], selectedTask: '', error: '',
+    tasks: [], selectedTask: '', parentScanId: null, error: '',
     model: 'reba',
     models: [],
     uploading: false, progress: 0,
@@ -384,12 +509,16 @@ document.addEventListener('alpine:init', () => {
     async init() {
       const p = new URLSearchParams(location.search);
       const pre = p.get('task_id');
+      this.parentScanId = p.get('parent_scan_id');
+      const parentModel = p.get('parent_model');
       try {
         const [tasks, allModels] = await Promise.all([api('/tasks'), api('/scans/models')]);
         this.tasks = tasks;
         this.models = allModels.filter(m => m.input_types.includes('video'));
       } catch (_) { /* skip */ }
-      if (this.models.length && !this.models.find(m => m.value === this.model)) {
+      if (parentModel && this.models.find(m => m.value === parentModel)) {
+        this.model = parentModel;
+      } else if (this.models.length && !this.models.find(m => m.value === this.model)) {
         this.model = this.models[0].value;
       }
       if (pre) this.selectedTask = pre;
@@ -399,6 +528,7 @@ document.addEventListener('alpine:init', () => {
       const file = this.$refs.videoFile && this.$refs.videoFile.files[0];
       if (this.videoPreviewUrl) URL.revokeObjectURL(this.videoPreviewUrl);
       this.videoPreviewUrl = file ? URL.createObjectURL(file) : null;
+      this.error = '';
     },
     async submit() {
       this.error = '';
@@ -415,6 +545,7 @@ document.addEventListener('alpine:init', () => {
       const fd = new FormData();
       fd.append('task_id', this.selectedTask);
       fd.append('model', this.model);
+      if (this.parentScanId) fd.append('parent_scan_id', this.parentScanId);
       fd.append('video', file);
 
       try {
@@ -426,6 +557,20 @@ document.addEventListener('alpine:init', () => {
         this.resultPending = true;
         this.pollResult();
       } catch (e) { this.error = e.message; this.uploading = false; }
+    },
+    resetScanFlow() {
+      clearTimeout(this._pollTimer);
+      this.scanId = null;
+      this.scan = null;
+      this.resultLoading = false;
+      this.resultPending = false;
+      this.scanInvalid = false;
+      this.error = '';
+      this.errorMessage = '';
+      this.measurements = [];
+      this.recommendation = '';
+      this.progress = 0;
+      if (this.$refs.videoFile) this.$refs.videoFile.value = '';
     },
     async pollResult() {
       if (!this.scanId) return;
@@ -627,6 +772,7 @@ document.addEventListener('alpine:init', () => {
   Alpine.data('scanComparePage', () => ({
     scanId: null, current: null, parent: null,
     loading: true, error: '',
+    noComparisonData: false,
     init() {
       const parts = location.pathname.split('/').filter(Boolean);
       this.scanId = parts[1] || null;
@@ -638,6 +784,7 @@ document.addEventListener('alpine:init', () => {
         const d = await api('/scans/' + this.scanId + '/compare');
         this.current = d.current;
         this.parent  = d.parent;
+        this.noComparisonData = !(this.current && this.parent);
         this.$nextTick(() => this.renderChart());
       } catch (e) { this.error = e.message; }
       finally { this.loading = false; }
@@ -674,6 +821,316 @@ document.addEventListener('alpine:init', () => {
   }));
 
   /* ────────────────────────────────────────────────────────────────────────
+   * ADVANCED SCAN COMPARISON  (/scans/compare)
+   * Components: ScanSelector · SkeletonViewer · ScoreDeltaCard
+   *             JointHeatmap · ComparisonTree · Timeline
+   * ──────────────────────────────────────────────────────────────────────── */
+
+  Alpine.data('scanAdvancedComparePage', () => ({
+
+    /* ── State ─────────────────────────────────────────────────────── */
+    loadingScans: true,
+    scansError:   '',
+    scans:        [],         // completed scans available for selection
+
+    comparing:   false,
+    error:       '',
+    comparison:  null,        // full API response from /scans/compare
+
+    scanAId: '',              // selected scan IDs (strings for <select> binding)
+    scanBId: '',
+
+    _chart: null,             // Chart.js instance
+
+    /* ── Lifecycle ─────────────────────────────────────────────────── */
+    async init() {
+      await this.loadScans();
+      // Support deep-link: /scans/compare?a=1&b=2
+      const p = new URLSearchParams(location.search);
+      const a = p.get('a'), b = p.get('b');
+      if (a) this.scanAId = String(a);
+      if (b) this.scanBId = String(b);
+      if (a && b) await this.runComparison();
+    },
+
+    /* ── Data loading ──────────────────────────────────────────────── */
+    async loadScans() {
+      this.loadingScans = true;
+      this.scansError   = '';
+      try {
+        const d = await api('/scans?status=completed&limit=200');
+        const raw = Array.isArray(d) ? d : (d.data ?? []);
+        // Keep all scans that have a score (completed or with result)
+        this.scans = raw
+          .filter(s => s.status === 'completed' || s.normalized_score != null)
+          .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      } catch (e) {
+        this.scansError = e.message;
+      } finally {
+        this.loadingScans = false;
+      }
+    },
+
+    async runComparison() {
+      if (!this.canCompare) return;
+      this.comparing  = true;
+      this.error      = '';
+      this.comparison = null;
+      if (this._chart) { this._chart.destroy(); this._chart = null; }
+      try {
+        const d = await api('/scans/compare?scanA=' + this.scanAId + '&scanB=' + this.scanBId);
+        this.comparison = d.data ?? d;
+        this.$nextTick(() => this._renderTimeline());
+      } catch (e) {
+        this.error = e.message;
+      } finally {
+        this.comparing = false;
+      }
+    },
+
+    /* ── Computed getters ──────────────────────────────────────────── */
+    get canCompare() {
+      return this.scanAId && this.scanBId && this.scanAId !== this.scanBId && this.sameModel;
+    },
+    get scanA() {
+      return this.scans.find(s => String(s.id) === String(this.scanAId)) || null;
+    },
+    get scanB() {
+      return this.scans.find(s => String(s.id) === String(this.scanBId)) || null;
+    },
+    get sameModel() {
+      if (!this.scanA || !this.scanB) return true;
+      return String(this.scanA.model || '').toLowerCase() === String(this.scanB.model || '').toLowerCase();
+    },
+    get scoreA() {
+      return this.comparison?.summary?.scan_a?.normalized_score ?? null;
+    },
+    get scoreB() {
+      return this.comparison?.summary?.scan_b?.normalized_score ?? null;
+    },
+    get scoreDeltaVal() {
+      return this.comparison?.score_delta?.normalized ?? null;
+    },
+    get direction() {
+      return this.comparison?.summary?.direction ?? 'unchanged';
+    },
+
+    /**
+     * Angle entries as an array for x-for iteration.
+     * pose_delta.angles is a plain object keyed by angle name.
+     */
+    get anglesList() {
+      const pd = this.comparison?.pose_delta;
+      if (!pd?.available) return [];
+      return Object.entries(pd.angles).map(([key, vals]) => ({ key, ...vals }));
+    },
+
+    /**
+     * Keys of the top-3 angles with the largest absolute delta.
+     * Used to apply the highlight ring on the skeleton joints.
+     */
+    get topDiffAngles() {
+      return this.anglesList
+        .map(a => ({ key: a.key, abs: Math.abs(a.delta) }))
+        .sort((a, b) => b.abs - a.abs)
+        .slice(0, 3)
+        .map(x => x.key);
+    },
+
+    /** Precomputed joint-colour maps for each skeleton */
+    get skeletonColorsA() { return this._buildColors('a'); },
+    get skeletonColorsB() { return this._buildColors('b'); },
+
+    /* ── Skeleton colour builder ───────────────────────────────────── */
+    _buildColors(side) {
+      const def = '#cbd5e1';
+      const c = {
+        head: def, neck: def,
+        lShoulder: def, rShoulder: def,
+        lElbow: def,    rElbow: def,
+        lWrist: def,    rWrist: def,
+        trunk: def,
+        lHip: def,  rHip: def,
+        lKnee: def, rKnee: def,
+        lAnkle: def, rAnkle: def,
+      };
+      if (!this.comparison) return c;
+
+      const isA    = side === 'a';
+      const angles = this.comparison.pose_delta?.angles ?? {};
+
+      // Helper: angle value → risk colour
+      const col = (key) => {
+        const a = angles[key];
+        if (!a) return null;
+        const v = isA ? a.scan_a : a.scan_b;
+        return this.riskColor(Math.min(100, Math.abs(v) / 90 * 100));
+      };
+
+      const neck  = col('neck_angle');
+      const trunk = col('trunk_angle');
+      const ua    = col('upper_arm_angle');
+      const la    = col('lower_arm_angle');
+      const wr    = col('wrist_angle');
+
+      if (neck)  { c.head = neck; c.neck = neck; }
+      if (trunk) { c.trunk = trunk; }
+      if (ua)    { c.lShoulder = ua; c.rShoulder = ua; }
+      if (la)    { c.lElbow = la;   c.rElbow = la; }
+      if (wr)    { c.lWrist = wr;   c.rWrist = wr; }
+
+      // Fall back lower body + any missing joints to overall normalised score
+      const overall = isA ? this.scoreA : this.scoreB;
+      if (overall !== null) {
+        const oc = this.riskColor(overall);
+        if (!neck)  { c.head = oc; c.neck = oc; }
+        if (!trunk) { c.trunk = oc; }
+        ['lHip', 'rHip', 'lKnee', 'rKnee', 'lAnkle', 'rAnkle']
+          .forEach(j => { c[j] = oc; });
+      }
+
+      return c;
+    },
+
+    /* ── Risk utilities ────────────────────────────────────────────── */
+    riskColor(score) {
+      if (score == null) return '#cbd5e1';
+      if (score < 30) return '#22c55e';
+      if (score < 55) return '#f59e0b';
+      if (score < 75) return '#f97316';
+      return '#ef4444';
+    },
+    riskLabel(score) {
+      if (score == null) return '—';
+      if (score < 30) return 'Low';
+      if (score < 55) return 'Moderate';
+      if (score < 75) return 'High';
+      return 'Critical';
+    },
+    riskBadgeClass(score) {
+      if (score == null) return 'badge-soft-secondary';
+      if (score < 30) return 'badge-soft-success';
+      if (score < 55) return 'badge-soft-warning';
+      return 'badge-soft-danger';
+    },
+    deltaClass(delta) {
+      if (delta == null || Math.abs(delta) < 0.05) return 'text-muted';
+      return delta < 0 ? 'text-success' : 'text-danger';
+    },
+    deltaIcon(delta) {
+      if (delta == null || Math.abs(delta) < 0.05) return 'bi-dash';
+      return delta < 0 ? 'bi-arrow-down-short' : 'bi-arrow-up-short';
+    },
+    directionBadge() {
+      const d = this.direction;
+      if (d === 'improved')
+        return { cls: 'alert-success', icon: 'bi-arrow-down-circle-fill', text: 'Risk Improved' };
+      if (d === 'worsened')
+        return { cls: 'alert-danger',  icon: 'bi-arrow-up-circle-fill',   text: 'Risk Worsened' };
+      return { cls: 'alert-info', icon: 'bi-dash-circle', text: 'No Change' };
+    },
+
+    /* ── Formatting ────────────────────────────────────────────────── */
+    fmtDate(d) {
+      if (!d) return '—';
+      return new Date(d).toLocaleDateString(undefined, {
+        year: 'numeric', month: 'short', day: 'numeric',
+      });
+    },
+    fmtScore(v) {
+      if (v == null) return '—';
+      return Number(v).toFixed(1);
+    },
+    prettyKey(k) {
+      return k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    },
+    /** Label shown in the <select> dropdowns */
+    scanLabel(s) {
+      const date = this.fmtDate(s.created_at);
+      const risk = s.risk_category ? ' [' + s.risk_category + ']' : '';
+      return '#' + s.id + ' · ' + (s.model || '').toUpperCase() + ' · ' + date + risk;
+    },
+
+    /* ── Timeline (Chart.js) ───────────────────────────────────────── */
+    _renderTimeline() {
+      const canvas = document.getElementById('cmpTimelineChart');
+      if (!canvas || typeof Chart === 'undefined') return;
+
+      // Sort chronologically; cap at 50 scans for performance
+      const sorted = this.scans
+        .slice()
+        .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+        .slice(-50);
+
+      const labels = sorted.map(s => this.fmtDate(s.created_at));
+      const data   = sorted.map(s => s.normalized_score != null ? Number(s.normalized_score) : null);
+
+      const aIdx = sorted.findIndex(s => String(s.id) === String(this.scanAId));
+      const bIdx = sorted.findIndex(s => String(s.id) === String(this.scanBId));
+
+      // Distinct point styling for selected scans
+      const pointBg = sorted.map((_, i) => {
+        if (i === aIdx) return '#7c3aed';
+        if (i === bIdx) return '#0ea5e9';
+        return 'rgba(124,58,237,0.22)';
+      });
+      const pointR = sorted.map((_, i) => (i === aIdx || i === bIdx) ? 9 : 4);
+
+      if (this._chart) this._chart.destroy();
+      this._chart = new Chart(canvas, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Risk Score',
+            data,
+            borderColor: '#7c3aed',
+            backgroundColor: 'rgba(124,58,237,0.07)',
+            fill: true,
+            tension: 0.35,
+            pointBackgroundColor: pointBg,
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2,
+            pointRadius: pointR,
+            pointHoverRadius: 10,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                title: (ctx) => {
+                  const s = sorted[ctx[0].dataIndex];
+                  const tag = String(s.id) === String(this.scanAId) ? ' ← Scan A'
+                            : String(s.id) === String(this.scanBId) ? ' ← Scan B' : '';
+                  return '#' + s.id + tag + '  ·  ' + ctx[0].label;
+                },
+                label: (ctx) => ' Risk Score: ' + (ctx.parsed.y != null ? ctx.parsed.y.toFixed(1) : '—'),
+              },
+            },
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              max: 100,
+              grid: { color: 'rgba(0,0,0,0.04)' },
+              ticks: { font: { size: 11 }, callback: v => v },
+            },
+            x: {
+              grid: { display: false },
+              ticks: { font: { size: 11 }, maxRotation: 40, autoSkip: true, maxTicksLimit: 12 },
+            },
+          },
+        },
+      });
+    },
+
+  }));
+
+  /* ────────────────────────────────────────────────────────────────────────
    * ADMIN PAGES
    * ──────────────────────────────────────────────────────────────────────── */
 
@@ -695,6 +1152,8 @@ document.addEventListener('alpine:init', () => {
   Alpine.data('adminOrgsPage', () => ({
     orgs: [], loading: true, error: '', search: '',
     editingOrg: null, form: { name: '', contact_email: '', status: 'active' }, formError: '',
+    savingOrg: false,
+    togglingOrgId: null,
     _modal: null,
     async init() { await this.load(); },
     async load() {
@@ -726,6 +1185,7 @@ document.addEventListener('alpine:init', () => {
     },
     async saveOrg() {
       this.formError = '';
+      this.savingOrg = true;
       try {
         if (this.editingOrg) {
           await api('/admin/organizations/' + this.editingOrg.id, { method: 'PUT', body: JSON.stringify(this.form) });
@@ -735,13 +1195,27 @@ document.addEventListener('alpine:init', () => {
         this._getModal().hide();
         await this.load();
       } catch (e) { this.formError = e.message; }
+      finally { this.savingOrg = false; }
     },
     async toggleStatus(org) {
       const newStatus = org.status === 'active' ? 'suspended' : 'active';
+      const ok = await appConfirm(
+        newStatus === 'suspended'
+          ? 'Suspend this organization? Users in this organization may lose access.'
+          : 'Activate this organization?',
+        {
+          title: newStatus === 'suspended' ? 'Suspend Organization' : 'Activate Organization',
+          okText: newStatus === 'suspended' ? 'Suspend' : 'Activate',
+          variant: newStatus === 'suspended' ? 'warning' : 'success',
+        }
+      );
+      if (!ok) return;
+      this.togglingOrgId = org.id;
       try {
         await api('/admin/organizations/' + org.id, { method: 'PUT', body: JSON.stringify({ status: newStatus }) });
         await this.load();
       } catch (e) { this.error = e.message; }
+      finally { this.togglingOrgId = null; }
     },
     fmtDate(d) { return d ? new Date(d).toLocaleDateString() : '—'; },
     _getModal() {
@@ -754,8 +1228,10 @@ document.addEventListener('alpine:init', () => {
   Alpine.data('adminUsersPage', () => ({
     users: [], loading: true, error: '', search: '', filterRole: '', filterStatus: '',
     editingUser: null, editForm: { name: '', email: '', role: '', status: '' }, formError: '',
-    deletingUser: null,
-    _editModal: null, _deleteModal: null,
+    savingUser: false,
+    deletingUserLoading: false,
+    deletingUserId: null,
+    _editModal: null,
     async init() { await this.load(); },
     async load() {
       this.loading = true; this.error = '';
@@ -774,8 +1250,14 @@ document.addEventListener('alpine:init', () => {
       return list;
     },
     roleBadge(role) {
-      const map = { admin: 'bg-primary', supervisor: 'bg-info text-dark', worker: 'bg-secondary', observer: 'bg-warning text-dark' };
-      return map[role] || 'bg-secondary';
+      const map = {
+        super_admin: 'badge-soft-danger',
+        admin: 'badge-soft-primary',
+        supervisor: 'badge-soft-info',
+        worker: 'badge-soft-secondary',
+        observer: 'badge-soft-warning'
+      };
+      return map[role] || 'badge-soft-secondary';
     },
     openEdit(u) {
       this.editingUser = u;
@@ -785,46 +1267,55 @@ document.addEventListener('alpine:init', () => {
     },
     async saveUser() {
       this.formError = '';
+      this.savingUser = true;
       try {
         await api('/admin/users/' + this.editingUser.id, { method: 'PUT', body: JSON.stringify(this.editForm) });
         this._getEditModal().hide();
         await this.load();
       } catch (e) { this.formError = e.message; }
+      finally { this.savingUser = false; }
     },
-    confirmDelete(u) {
-      this.deletingUser = u;
-      this._getDeleteModal().show();
-    },
-    async doDelete() {
+    async requestDelete(u) {
+      if (this.deletingUserLoading) return;
+      const ok = await appConfirm(
+        'Delete ' + (u.name || 'this user') + '? This action cannot be undone.',
+        { title: 'Delete User', okText: 'Delete', variant: 'danger' }
+      );
+      if (!ok) return;
+
+      this.deletingUserLoading = true;
+      this.deletingUserId = u.id;
       try {
-        await api('/admin/users/' + this.deletingUser.id, { method: 'DELETE' });
-        this._getDeleteModal().hide();
+        await api('/admin/users/' + u.id, { method: 'DELETE' });
         await this.load();
       } catch (e) { this.error = e.message; }
+      finally {
+        this.deletingUserLoading = false;
+        this.deletingUserId = null;
+      }
     },
     _getEditModal() {
       if (!this._editModal) this._editModal = new bootstrap.Modal(document.getElementById('editUserModal'));
       return this._editModal;
     },
-    _getDeleteModal() {
-      if (!this._deleteModal) this._deleteModal = new bootstrap.Modal(document.getElementById('deleteUserModal'));
-      return this._deleteModal;
-    }
   }));
 
   /* ── Admin Plans page ─────────────────────────────────────────────────── */
   Alpine.data('adminPlansPage', () => ({
     plans: [], loading: true, error: '',
     search: '',
+    saving: false,
+    deleting: false,
     get filtered() {
       const q = this.search.toLowerCase().trim();
       if (!q) return this.plans;
       return this.plans.filter(p => (p.name || '').toLowerCase().includes(q));
     },
-    editingPlan: null, deletingPlan: null,
+    editingPlan: null,
+    deletingPlanId: null,
     form: { name: '', price: '', scan_limit: '', billing_cycle: 'monthly', status: 'active' },
     formError: '',
-    _modal: null, _delModal: null,
+    _modal: null,
     async init() { await this.load(); },
     async load() {
       this.loading = true; this.error = '';
@@ -854,6 +1345,7 @@ document.addEventListener('alpine:init', () => {
     },
     async savePlan() {
       this.formError = '';
+      this.saving = true;
       const payload = { ...this.form };
       if (payload.scan_limit === '' || payload.scan_limit === null) payload.scan_limit = null;
       else payload.scan_limit = parseInt(payload.scan_limit, 10);
@@ -867,26 +1359,31 @@ document.addEventListener('alpine:init', () => {
         this._getModal().hide();
         await this.load();
       } catch (e) { this.formError = e.message; }
+      finally { this.saving = false; }
     },
-    confirmDelete(plan) {
-      this.deletingPlan = plan;
-      this._getDelModal().show();
-    },
-    async doDelete() {
+    async requestDelete(plan) {
+      if (this.deleting) return;
+      const ok = await appConfirm(
+        'Delete ' + (plan.name || 'this plan') + '? Organizations on this plan keep access until next renewal.',
+        { title: 'Delete Plan', okText: 'Delete', variant: 'danger' }
+      );
+      if (!ok) return;
+
+      this.deleting = true;
+      this.deletingPlanId = plan.id;
       try {
-        await api('/admin/plans/' + this.deletingPlan.id, { method: 'DELETE' });
-        this._getDelModal().hide();
+        await api('/admin/plans/' + plan.id, { method: 'DELETE' });
         await this.load();
       } catch (e) { this.error = e.message; }
+      finally {
+        this.deleting = false;
+        this.deletingPlanId = null;
+      }
     },
     _getModal() {
       if (!this._modal) this._modal = new bootstrap.Modal(document.getElementById('planModal'));
       return this._modal;
     },
-    _getDelModal() {
-      if (!this._delModal) this._delModal = new bootstrap.Modal(document.getElementById('deletePlanModal'));
-      return this._delModal;
-    }
   }));
 
   /* ────────────────────────────────────────────────────────────────────────
@@ -906,8 +1403,12 @@ document.addEventListener('alpine:init', () => {
       );
     },
     inviteForm: { name: '', email: '', password: '', role: 'worker' }, formError: '',
-    editingMember: null, newRole: '', removingMember: null,
-    _inviteModal: null, _roleModal: null, _removeModal: null,
+    editingMember: null, newRole: '',
+    inviteSending: false,
+    roleSaving: false,
+    removeSaving: false,
+    removingMemberId: null,
+    _inviteModal: null, _roleModal: null,
     async init() { await this.load(); },
     async load() {
       this.loading = true; this.error = '';
@@ -918,8 +1419,14 @@ document.addEventListener('alpine:init', () => {
       finally { this.loading = false; }
     },
     roleBadge(role) {
-      const map = { admin: 'bg-primary', supervisor: 'bg-info text-dark', worker: 'bg-secondary', observer: 'bg-warning text-dark' };
-      return map[role] || 'bg-secondary';
+      const map = {
+        super_admin: 'badge-soft-danger',
+        admin: 'badge-soft-primary',
+        supervisor: 'badge-soft-info',
+        worker: 'badge-soft-secondary',
+        observer: 'badge-soft-warning'
+      };
+      return map[role] || 'badge-soft-secondary';
     },
     openInvite() {
       this.inviteForm = { name: '', email: '', password: '', role: 'worker' };
@@ -928,11 +1435,13 @@ document.addEventListener('alpine:init', () => {
     },
     async sendInvite() {
       this.formError = '';
+      this.inviteSending = true;
       try {
         await api('/org/members', { method: 'POST', body: JSON.stringify(this.inviteForm) });
         this._getInviteModal().hide();
         await this.load();
       } catch (e) { this.formError = e.message; }
+      finally { this.inviteSending = false; }
     },
     openRoleEdit(m) {
       this.editingMember = m;
@@ -940,22 +1449,32 @@ document.addEventListener('alpine:init', () => {
       this._getRoleModal().show();
     },
     async saveRole() {
+      this.roleSaving = true;
       try {
         await api('/org/members/' + this.editingMember.id, { method: 'PUT', body: JSON.stringify({ role: this.newRole }) });
         this._getRoleModal().hide();
         await this.load();
       } catch (e) { this.error = e.message; }
+      finally { this.roleSaving = false; }
     },
-    confirmRemove(m) {
-      this.removingMember = m;
-      this._getRemoveModal().show();
-    },
-    async doRemove() {
+    async requestRemove(m) {
+      if (this.removeSaving) return;
+      const ok = await appConfirm(
+        'Remove ' + (m.name || 'this member') + ' from your organization? They will lose access immediately.',
+        { title: 'Remove Member', okText: 'Remove', variant: 'danger' }
+      );
+      if (!ok) return;
+
+      this.removeSaving = true;
+      this.removingMemberId = m.id;
       try {
-        await api('/org/members/' + this.removingMember.id, { method: 'DELETE' });
-        this._getRemoveModal().hide();
+        await api('/org/members/' + m.id, { method: 'DELETE' });
         await this.load();
       } catch (e) { this.error = e.message; }
+      finally {
+        this.removeSaving = false;
+        this.removingMemberId = null;
+      }
     },
     _getInviteModal() {
       if (!this._inviteModal) this._inviteModal = new bootstrap.Modal(document.getElementById('inviteModal'));
@@ -965,10 +1484,6 @@ document.addEventListener('alpine:init', () => {
       if (!this._roleModal) this._roleModal = new bootstrap.Modal(document.getElementById('roleModal'));
       return this._roleModal;
     },
-    _getRemoveModal() {
-      if (!this._removeModal) this._removeModal = new bootstrap.Modal(document.getElementById('removeModal'));
-      return this._removeModal;
-    }
   }));
 
   /* ── User Profile page ──────────────────────────────────────────────── */
@@ -1052,7 +1567,13 @@ document.addEventListener('alpine:init', () => {
 
     /* Disable 2FA */
     async disable2fa() {
-      if (!confirm('Are you sure you want to disable two-factor authentication?')) return;
+      if (this.twoFaDisableLoading) return;
+      const ok = await appConfirm(
+        'Disable two-factor authentication for your account? This reduces sign-in security.',
+        { title: 'Disable Two-Factor Authentication', okText: 'Disable 2FA', variant: 'danger' }
+      );
+      if (!ok) return;
+
       this.twoFaError = ''; this.twoFaMsg = ''; this.twoFaDisableLoading = true;
       try {
         await api('/auth/2fa/disable', { method: 'POST' });
@@ -1194,6 +1715,7 @@ document.addEventListener('alpine:init', () => {
   /* ── Notifications dropdown ─────────────────────────────────────────── */
   Alpine.data('notificationsDropdown', () => ({
     open: false, loading: false,
+    markingAllRead: false,
     items: [], unreadCount: 0,
     _pollTimer: null,
     _loaded: false,                       // true after first full load
@@ -1255,9 +1777,12 @@ document.addEventListener('alpine:init', () => {
       try { await api('/notifications/' + n.id + '/read', { method: 'PUT' }); } catch (_) {}
     },
     async markAllRead() {
+      if (this.markingAllRead) return;
+      this.markingAllRead = true;
       this.items.forEach(n => n.is_read = '1');
       this.unreadCount = 0;
       try { await api('/notifications/read-all', { method: 'PUT' }); } catch (_) {}
+      finally { this.markingAllRead = false; }
     },
     notifIcon(type) {
       const map = { scan_complete: 'bi-check-circle', high_risk: 'bi-exclamation-triangle', observer_rated: 'bi-pencil-square', member_joined: 'bi-person-plus', plan_changed: 'bi-box', announcement: 'bi-megaphone' };
@@ -1281,35 +1806,128 @@ document.addEventListener('alpine:init', () => {
 
   /* ── Org Billing page ─────────────────────────────────────────────────── */
   Alpine.data('orgBillingPage', () => ({
-    sub: {}, plans: [], loading: true, error: '', changing: false,
+    sub: {}, plans: [], invoices: [], loading: true, error: '', changing: false,
+    changingPlanId: null,
     changeSuccess: false, changeError: '',
+    chargingInvoiceId: null, chargeSuccess: '', chargeError: '',
+    paymentToken: '',
     async init() {
+      await this.load();
+    },
+    async load() {
+      this.loading = true;
+      this.error = '';
       try {
-        const [subRes, plansRes] = await Promise.all([
+        const [subRes, plansRes, invoicesRes] = await Promise.all([
           api('/org/subscription'),
-          api('/billing/plans')
+          api('/billing/plans'),
+          api('/billing/invoices').catch(() => ({ data: [] }))
         ]);
-        this.sub   = subRes.data  ?? subRes;
+
+        const rawSub = subRes.data ?? subRes;
+        const plan = rawSub.plan || {};
+        const usage = rawSub.usage || {};
+
+        this.sub = {
+          ...rawSub,
+          plan,
+          usage,
+          plan_name: rawSub.plan_name || plan.name || null,
+          amount: rawSub.amount ?? plan.price ?? 0,
+          billing_cycle: rawSub.billing_cycle || plan.billing_cycle || usage.billing_cycle || null,
+          status: rawSub.status || plan.status || 'inactive',
+          scan_limit: rawSub.scan_limit ?? plan.scan_limit ?? usage.limit ?? null,
+          scans_used: rawSub.scans_used ?? usage.used ?? 0,
+          reserved_scans: rawSub.reserved_scans ?? usage.reserved_scans ?? 0,
+          billed_scans: rawSub.billed_scans ?? usage.billed_scans ?? null,
+          period_start: rawSub.period_start || usage.period_start || null,
+          period_end: rawSub.period_end || usage.period_end || null,
+          member_limit: rawSub.member_limit ?? plan.member_limit ?? null,
+          members_used: rawSub.members_used ?? usage.members_used ?? 0,
+          expires_at: rawSub.expires_at || plan.end_date || null,
+        };
+
         this.plans = plansRes.data ?? plansRes;
-      } catch (e) { this.error = e.message; }
-      finally { this.loading = false; }
+        this.invoices = invoicesRes.data ?? invoicesRes ?? [];
+      } catch (e) {
+        this.error = e.message;
+      } finally {
+        this.loading = false;
+      }
     },
     get usagePercent() {
-      const limit = this.sub?.usage?.limit;
-      const used  = this.sub?.usage?.used ?? 0;
+      const limit = this.sub?.usage?.limit ?? this.sub?.scan_limit;
+      const used  = this.sub?.usage?.used ?? this.sub?.scans_used ?? 0;
       if (!limit) return 0;
-      return Math.min(100, Math.round(used / limit * 100));
+      return Math.min(100, Math.round((used / limit) * 100));
     },
     isCurrent(plan) {
       return String(plan.id) === String(this.sub?.plan?.id);
     },
+    usagePeriodLabel() {
+      if (!this.sub?.period_start || !this.sub?.period_end) return 'Current period';
+      return this.fmtDate(this.sub.period_start) + ' - ' + this.fmtDate(this.sub.period_end);
+    },
+    fmtDate(d) {
+      return d ? new Date(d).toLocaleDateString() : '—';
+    },
+    fmtDateTime(d) {
+      return d ? new Date(d).toLocaleString() : '—';
+    },
+    fmtMoney(amount, currency = 'USD') {
+      const value = Number(amount || 0);
+      return new Intl.NumberFormat(undefined, {
+        style: 'currency',
+        currency: (currency || 'USD').toUpperCase(),
+        minimumFractionDigits: 2,
+      }).format(value);
+    },
+    invoiceStatusClass(status) {
+      const key = String(status || '').toLowerCase();
+      if (key === 'paid') return 'badge-soft-success';
+      if (key === 'failed') return 'badge-soft-danger';
+      return 'badge-soft-warning';
+    },
+    async chargeInvoice(invoiceId) {
+      this.chargeError = '';
+      this.chargeSuccess = '';
+      this.chargingInvoiceId = String(invoiceId);
+      try {
+        const payload = {};
+        if ((this.paymentToken || '').trim() !== '') {
+          payload.payment_token = this.paymentToken.trim();
+        }
+
+        const res = await api('/billing/invoices/' + invoiceId + '/charge', {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        });
+
+        const charge = res.charge || (res.data && res.data.charge) || {};
+        this.chargeSuccess = charge.message || 'Charge request sent.';
+        await this.load();
+      } catch (e) {
+        this.chargeError = e.message;
+      } finally {
+        this.chargingInvoiceId = null;
+      }
+    },
     async changePlan(planId) {
-      this.changing = true; this.changeError = ''; this.changeSuccess = false;
+      this.changing = true;
+      this.changingPlanId = String(planId);
+      this.changeError = '';
+      this.changeSuccess = false;
       try {
         await api('/org/subscription', { method: 'PUT', body: JSON.stringify({ plan_id: planId }) });
         this.changeSuccess = true;
-        setTimeout(() => location.reload(), 1500);
-      } catch (e) { this.changeError = e.message; this.changing = false; }
+        await this.load();
+        setTimeout(() => { this.changeSuccess = false; }, 2500);
+      } catch (e) {
+        this.changeError = e.message;
+      } finally {
+        this.changing = false;
+        this.changingPlanId = null;
+      }
     }
   }));
 

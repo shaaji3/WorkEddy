@@ -12,12 +12,13 @@ use RuntimeException;
  * Calculates the Recommended Weight Limit (RWL) and Lifting Index (LI).
  * LI > 1.0 means risk exceeds the NIOSH guideline.
  *
- * NIOSH is manual-input only — video cannot provide the required variables.
+ * NIOSH is manual-input only; video cannot provide the required variables.
  */
 final class NioshService implements ErgonomicAssessmentInterface
 {
-    /** Load constant — the maximum acceptable weight under ideal conditions (kg). */
+    /** Load constant: maximum acceptable weight under ideal conditions (kg). */
     private const LC = 23.0;
+    private const ALGORITHM_VERSION = 'niosh_official_v1';
 
     public function modelName(): string { return 'niosh'; }
 
@@ -35,15 +36,14 @@ final class NioshService implements ErgonomicAssessmentInterface
 
     public function calculateScore(array $m): array
     {
-        $H = max(1.0, (float) $m['horizontal_distance']);  // cm
-        $V = (float) $m['vertical_start'];                 // cm from floor
-        $D = max(1.0, (float) $m['vertical_travel']);       // cm
-        $A = (float) $m['twist_angle'];                    // degrees
-        $F = (float) $m['frequency'];                      // lifts / minute
+        $H = max(1.0, (float) $m['horizontal_distance']);
+        $V = (float) $m['vertical_start'];
+        $D = max(1.0, (float) $m['vertical_travel']);
+        $A = (float) $m['twist_angle'];
+        $F = (float) $m['frequency'];
         $coupling = $m['coupling'] ?? 'fair';
-        $load     = (float) $m['load_weight'];             // kg
+        $load = (float) $m['load_weight'];
 
-        // ── Multiplier factors ──────────────────────────────────────
         $HM = min(1.0, 25.0 / $H);
         $VM = 1.0 - 0.003 * abs($V - 75.0);
         $VM = max(0.0, min(1.0, $VM));
@@ -52,47 +52,44 @@ final class NioshService implements ErgonomicAssessmentInterface
         $AM = 1.0 - 0.0032 * $A;
         $AM = max(0.0, min(1.0, $AM));
         $FM = $this->frequencyMultiplier($F);
-        $CM = $this->couplingMultiplier($coupling, $V);
+        $CM = $this->couplingMultiplier((string) $coupling, $V);
 
-        // ── Recommended Weight Limit ────────────────────────────────
         $rwl = self::LC * $HM * $VM * $DM * $AM * $FM * $CM;
         $rwl = max(0.01, round($rwl, 2));
 
-        // ── Lifting Index ───────────────────────────────────────────
         $li = round($load / $rwl, 2);
 
-        $riskLevel  = $this->getRiskLevel($li);
+        $riskLevel = $this->getRiskLevel($li);
         $normalized = min(100.0, max(0.0, round($li / 3 * 100, 2))); // LI 3.0 = 100%
 
         return [
-            'score'            => $li,
-            'risk_level'       => $riskLevel,
-            'recommendation'   => $this->recommendation($li, $rwl),
-            'raw_score'        => $li,
+            'score' => $li,
+            'risk_level' => $riskLevel,
+            'recommendation' => $this->recommendation($li, $rwl),
+            'raw_score' => $li,
             'normalized_score' => $normalized,
-            'risk_category'    => $this->getRiskCategory($normalized),
-            'rwl'              => $rwl,
-            'lifting_index'    => $li,
+            'risk_category' => $this->getRiskCategory($normalized),
+            'rwl' => $rwl,
+            'lifting_index' => $li,
+            'algorithm_version' => self::ALGORITHM_VERSION,
         ];
     }
 
     public function getRiskLevel(float $li): string
     {
-        if ($li >= 3.0) return 'High – Significant risk of injury';
-        if ($li >= 1.0) return 'Moderate – Exceeds recommended limit';
-        return 'Low – Within acceptable range';
+        if ($li >= 3.0) return 'High - Significant risk of injury';
+        if ($li >= 1.0) return 'Moderate - Exceeds recommended limit';
+        return 'Low - Within acceptable range';
     }
-
-    // ── NIOSH multiplier tables ─────────────────────────────────────────
 
     private function frequencyMultiplier(float $freq): float
     {
         if ($freq <= 0.2) return 1.0;
-        if ($freq <= 1)   return 0.94;
-        if ($freq <= 4)   return 0.84;
-        if ($freq <= 6)   return 0.75;
-        if ($freq <= 9)   return 0.52;
-        if ($freq <= 12)  return 0.37;
+        if ($freq <= 1) return 0.94;
+        if ($freq <= 4) return 0.84;
+        if ($freq <= 6) return 0.75;
+        if ($freq <= 9) return 0.52;
+        if ($freq <= 12) return 0.37;
         return 0.18;
     }
 
@@ -102,7 +99,7 @@ final class NioshService implements ErgonomicAssessmentInterface
         return match ($coupling) {
             'good' => 1.0,
             'fair' => $below75 ? 0.95 : 1.0,
-            'poor' => $below75 ? 0.90 : 0.90,
+            'poor' => 0.90,
             default => 0.95,
         };
     }
@@ -120,7 +117,7 @@ final class NioshService implements ErgonomicAssessmentInterface
         return match (true) {
             $li >= 3.0 => "High risk lifting (LI={$li}). Reduce load below {$rwlStr} kg or redesign the task.",
             $li >= 1.0 => "Lifting index exceeds 1.0 (LI={$li}). Consider reducing load, improving coupling, or adjusting task layout. RWL={$rwlStr} kg.",
-            default    => "Lifting is within NIOSH guidelines (LI={$li}). RWL={$rwlStr} kg.",
+            default => "Lifting is within NIOSH guidelines (LI={$li}). RWL={$rwlStr} kg.",
         };
     }
 }

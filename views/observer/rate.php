@@ -5,19 +5,12 @@ ob_start();
 ?>
 <div x-data="observerRatePage">
 
-  <div class="page-header">
-    <div>
-      <h1 class="page-title">Observer Rating</h1>
-      <ol class="breadcrumb mb-0 text-sm">
-        <li class="breadcrumb-item"><a href="/tasks" class="text-decoration-none text-muted">Tasks</a></li>
-        <li class="breadcrumb-item"><a :href="'/scans/' + scanId" class="text-decoration-none text-muted">Scan</a></li>
-        <li class="breadcrumb-item active">Rate</li>
-      </ol>
-    </div>
-    <a :href="'/scans/' + scanId" class="btn btn-outline-secondary">
-      <i class="bi bi-arrow-left me-1"></i>Back to Scan
-    </a>
-  </div>
+  <?php
+  $headerTitle = 'Observer Rating';
+  $headerBreadcrumbHtml = '<ol class="breadcrumb mb-0 text-sm"><li class="breadcrumb-item"><a href="/tasks" class="text-decoration-none text-muted">Tasks</a></li><li class="breadcrumb-item"><a :href="\'/scans/\' + scanId" class="text-decoration-none text-muted">Scan</a></li><li class="breadcrumb-item active">Rate</li></ol>';
+  $headerActionsHtml = '<a :href="\'/scans/\' + scanId" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i>Back to Scan</a>';
+  require __DIR__ . '/../partials/page-header.php';
+  ?>
 
   <!-- Loading -->
   <div class="text-center py-5" x-show="loading" x-cloak>
@@ -85,7 +78,7 @@ ob_start();
 
           <button class="btn btn-primary w-100" @click="submit" :disabled="saving">
             <span class="spinner-border spinner-border-sm me-1" x-show="saving" x-cloak></span>
-            Submit Rating
+            <span x-text="saving ? 'Submitting…' : 'Submit Rating'"></span>
           </button>
         </div>
       </div>

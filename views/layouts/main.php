@@ -17,6 +17,7 @@ $content    = $content    ?? '';
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>WorkEddy | <?= htmlspecialchars($pageTitle) ?></title>
+  <link rel="icon" type="image/png" href="/assets/img/favicon.ico" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link href="/assets/css/core.css" rel="stylesheet">
@@ -32,7 +33,7 @@ $content    = $content    ?? '';
 
     <!-- Brand -->
     <a class="app-brand" href="/dashboard">
-      <div class="app-brand-logo"><i class="bi bi-activity"></i></div>
+      <img src="/assets/img/logo.png" alt="WorkEddy logo" class="app-brand-logo" />
       <span class="app-brand-text">WorkEddy</span>
     </a>
 
@@ -47,7 +48,7 @@ $content    = $content    ?? '';
         'tasks'     => ['/tasks',            'bi-list-task', 'Tasks'],
         'scans'     => ['',                  'bi-upc-scan',  'Scans'],
       ];
-      $scansActive = in_array($activePage, ['scans', 'scans-video']);
+      $scansActive = in_array($activePage, ['scans', 'scans-video', 'scans-compare']);
       foreach ($coreNav as $key => [$href, $icon, $label]):
         if ($key === 'scans'): ?>
         <li class="menu-item" x-data="{ open: <?= $scansActive ? 'true' : 'false' ?> }">
@@ -70,6 +71,12 @@ $content    = $content    ?? '';
                 <i class="bi bi-camera-video"></i> Video Scan
               </a>
             </li>
+            <li class="menu-sub-item">
+              <a href="/scans/compare"
+                 class="menu-sub-link<?= $activePage === 'scans-compare' ? ' active' : '' ?>">
+                <i class="bi bi-arrow-left-right"></i> Compare Scans
+              </a>
+            </li>
           </ul>
         </li>
       <?php else:
@@ -85,7 +92,7 @@ $content    = $content    ?? '';
 
       <!-- Organisation section (supervisor +) -->
       <li class="menu-header"
-          x-show="$store.auth.role === 'admin' || $store.auth.role === 'supervisor'"
+          x-show="$store.auth.role === 'admin' || $store.auth.role === 'supervisor' || $store.auth.role === 'super_admin'"
           x-cloak>Organization</li>
 
       <?php
@@ -98,7 +105,7 @@ $content    = $content    ?? '';
         $cls = ($activePage === $key) ? ' active' : '';
       ?>
         <li class="menu-item"
-            x-show="$store.auth.role === 'admin' || $store.auth.role === 'supervisor'"
+            x-show="$store.auth.role === 'admin' || $store.auth.role === 'supervisor' || $store.auth.role === 'super_admin'"
             x-cloak>
           <a class="menu-link<?= $cls ?>" href="<?= $href ?>">
             <i class="menu-icon bi <?= $icon ?>"></i>
@@ -109,7 +116,7 @@ $content    = $content    ?? '';
 
       <!-- Admin section -->
       <li class="menu-header"
-          x-show="$store.auth.role === 'admin'"
+          x-show="$store.auth.role === 'super_admin'"
           x-cloak>Administration</li>
 
       <?php
@@ -124,7 +131,7 @@ $content    = $content    ?? '';
         $cls = ($activePage === $key) ? ' active' : '';
       ?>
         <li class="menu-item"
-            x-show="$store.auth.role === 'admin'"
+            x-show="$store.auth.role === 'super_admin'"
             x-cloak>
           <a class="menu-link<?= $cls ?>" href="<?= $href ?>">
             <i class="menu-icon bi <?= $icon ?>"></i>
@@ -173,9 +180,10 @@ $content    = $content    ?? '';
                :class="{ show: open }">
             <div class="notif-header">
               <span class="fw-semibold">Notifications</span>
-              <button class="btn btn-link btn-sm text-muted p-0" @click="markAllRead()"
+              <button class="btn btn-link btn-sm text-muted p-0" @click="markAllRead()" :disabled="markingAllRead"
                       x-show="unreadCount > 0" style="font-size:.8rem;text-decoration:none">
-                Mark all read
+                <span class="spinner-border spinner-border-sm me-1" x-show="markingAllRead" x-cloak></span>
+                <span x-text="markingAllRead ? 'Marking…' : 'Mark all read'"></span>
               </button>
             </div>
             <div class="notif-body">
@@ -283,6 +291,28 @@ $content    = $content    ?? '';
 <!-- Toast container -->
 <div class="toast-container-fixed" id="toastContainer"
      aria-live="polite" aria-atomic="true"></div>
+
+<!-- System Dialog (appAlert / appConfirm) -->
+<div class="modal fade" id="systemUxDialogModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-sm">
+    <div class="modal-content">
+      <div class="modal-header border-0 pb-0">
+        <h6 class="modal-title d-flex align-items-center gap-2">
+          <i data-dialog-icon class="bi bi-info-circle text-primary"></i>
+          <span data-dialog-title>Notice</span>
+        </h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-0" data-dialog-body></p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-light" data-dialog-cancel>Cancel</button>
+        <button type="button" class="btn btn-primary" data-dialog-ok>OK</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>

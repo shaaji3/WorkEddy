@@ -8,7 +8,6 @@ use FastRoute\Dispatcher;
 use WorkEddy\Core\Container;
 use WorkEddy\Core\Logger;
 use WorkEddy\Helpers\Response;
-use WorkEddy\Middleware\RateLimitMiddleware;
 
 // ─── Security headers (universal) ─────────────────────────────────────────────
 header('X-Content-Type-Options: nosniff');
@@ -60,7 +59,7 @@ try {
     if ($isApi) {
         // ── API response ──────────────────────────────────────────────────
         header('Content-Type: application/json; charset=utf-8');
-        (new RateLimitMiddleware())->handle($_SERVER['REMOTE_ADDR'] ?? 'unknown');
+        $container->rateLimiter()->handle($_SERVER['REMOTE_ADDR'] ?? 'unknown');
 
         match ($route[0]) {
             Dispatcher::NOT_FOUND          => Response::error('Not found', 404),

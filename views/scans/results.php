@@ -5,23 +5,18 @@ ob_start();
 ?>
 <div x-data="scanResultsPage">
 
-  <div class="page-header">
-    <div>
-      <h1 class="page-title">Scan Results</h1>
-      <ol class="breadcrumb mb-0 text-sm">
-        <li class="breadcrumb-item"><a href="/tasks" class="text-decoration-none text-muted">Tasks</a></li>
-        <li class="breadcrumb-item active">Results</li>
-      </ol>
-    </div>
-    <div class="d-flex gap-2">
-      <a :href="'/observer-rating?scan_id=' + scanId" class="btn btn-outline-primary">
-        <i class="bi bi-eye me-1"></i>Observer Rating
-      </a>
-      <a href="/tasks" class="btn btn-outline-secondary">
-        <i class="bi bi-arrow-left me-1"></i>Back
-      </a>
-    </div>
-  </div>
+  <?php
+  $headerTitle = 'Scan Results';
+  $headerBreadcrumbHtml = '<ol class="breadcrumb mb-0 text-sm"><li class="breadcrumb-item"><a href="/tasks" class="text-decoration-none text-muted">Tasks</a></li><li class="breadcrumb-item active">Results</li></ol>';
+  $headerActionsHtml = '
+    <a :href="\'/observer-rating?scan_id=\' + scanId" class="btn btn-outline-primary">
+      <i class="bi bi-eye me-1"></i>Observer Rating
+    </a>
+    <a href="/tasks" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left me-1"></i>Back
+    </a>';
+  require __DIR__ . '/../partials/page-header.php';
+  ?>
 
   <!-- Processing banner -->
   <div class="alert alert-info align-items-center gap-2"

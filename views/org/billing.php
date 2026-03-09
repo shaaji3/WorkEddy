@@ -36,12 +36,12 @@ ob_start();
             <h3 class="fw-bold mb-0" x-text="sub.plan_name || 'Free'"></h3>
             <p class="opacity-75 mt-1 mb-3 small">
               <span class="text-capitalize" x-text="sub.billing_cycle || 'Free tier'"></span>
-              &nbsp;·&nbsp;
+              &nbsp;&#183;&nbsp;
               <span x-text="sub.status === 'active' ? 'Active' : 'Inactive'"></span>
             </p>
 
             <div class="mb-3" x-show="sub.amount">
-              <span class="display-6 fw-bold" x-text="'$' + (sub.amount || '0')"></span>
+              <span class="display-6 fw-bold" x-text="fmtMoney(sub.amount || 0)"></span>
               <span class="opacity-75 ms-1 small"
                     x-text="'/ ' + (sub.billing_cycle || 'mo')"></span>
             </div>
@@ -49,6 +49,11 @@ ob_start();
             <div class="text-sm mb-2" x-show="sub.expires_at">
               <span class="opacity-75">Next renewal</span>
               <span class="fw-semibold ms-1" x-text="fmtDate(sub.expires_at)"></span>
+            </div>
+
+            <div class="text-sm mb-2">
+              <span class="opacity-75">Usage period</span>
+              <span class="fw-semibold ms-1" x-text="usagePeriodLabel()"></span>
             </div>
 
             <div class="mt-auto pt-3">
@@ -64,7 +69,10 @@ ob_start();
       <div class="col-md-7">
         <div class="card h-100">
           <div class="card-header">
-            <h6 class="card-title mb-0">Usage This Period</h6>
+            <div class="d-flex justify-content-between align-items-center gap-2">
+              <h6 class="card-title mb-0">Usage This Period</h6>
+              <span class="badge badge-soft-secondary text-capitalize" x-text="sub.billing_cycle || 'monthly'"></span>
+            </div>
           </div>
           <div class="card-body d-flex flex-column justify-content-center gap-4">
 
@@ -88,6 +96,28 @@ ob_start();
               <div class="d-flex justify-content-end mt-1">
                 <span class="text-muted text-xs"
                       x-text="usagePercent + '% used'"></span>
+              </div>
+            </div>
+
+            <!-- Usage breakdown -->
+            <div class="row g-3">
+              <div class="col-sm-4">
+                <div class="p-3 bg-light rounded-3 h-100">
+                  <div class="text-xs text-muted mb-1">Billed Scans</div>
+                  <div class="fw-semibold fs-5" x-text="sub.billed_scans ?? sub.scans_used ?? 0"></div>
+                </div>
+              </div>
+              <div class="col-sm-4">
+                <div class="p-3 bg-light rounded-3 h-100">
+                  <div class="text-xs text-muted mb-1">Reserved Scans</div>
+                  <div class="fw-semibold fs-5" x-text="sub.reserved_scans ?? 0"></div>
+                </div>
+              </div>
+              <div class="col-sm-4">
+                <div class="p-3 bg-light rounded-3 h-100">
+                  <div class="text-xs text-muted mb-1">Remaining</div>
+                  <div class="fw-semibold fs-5" x-text="sub.usage?.remaining ?? 'Unlimited'"></div>
+                </div>
               </div>
             </div>
 
@@ -168,11 +198,11 @@ ob_start();
 
               <button class="btn w-100"
                       :class="isCurrent(plan) ? 'btn-outline-primary' : 'btn-primary'"
-                      :disabled="isCurrent(plan) || changing"
+                    :disabled="isCurrent(plan) || changing"
                       @click="changePlan(plan.id)">
-                <span x-show="changing && !isCurrent(plan)"
+                  <span x-show="changingPlanId === String(plan.id)"
                       class="spinner-border spinner-border-sm me-1"></span>
-                <span x-text="isCurrent(plan) ? 'Current Plan' : 'Switch to ' + plan.name"></span>
+                  <span x-text="isCurrent(plan) ? 'Current Plan' : (changingPlanId === String(plan.id) ? 'Switching...' : 'Switch to ' + plan.name)"></span>
               </button>
             </div>
           </div>
@@ -185,6 +215,93 @@ ob_start();
       <div class="empty-state-icon"><i class="bi bi-grid"></i></div>
       <h6>No plans available</h6>
       <p>Contact support to discuss plan options.</p>
+    </div>
+
+    <!-- Invoices -->
+    <div class="card mt-4">
+      <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div>
+          <h6 class="card-title mb-0">Invoices</h6>
+          <p class="text-muted text-sm mb-0" x-text="usagePeriodLabel()"></p>
+        </div>
+        <div class="d-flex align-items-center gap-2" x-show="$store.auth.role === 'admin'">
+          <input type="text"
+                 class="form-control form-control-sm"
+                 style="min-width:260px"
+                 placeholder="Optional payment token"
+                 x-model.trim="paymentToken">
+        </div>
+      </div>
+
+      <div class="card-body pt-3">
+        <div class="alert alert-success py-2 mb-3"
+             x-show="chargeSuccess" x-cloak x-transition style="display:none"
+             x-text="chargeSuccess"></div>
+        <div class="alert alert-danger py-2 mb-3"
+             x-show="chargeError" x-cloak x-transition style="display:none"
+             x-text="chargeError"></div>
+
+        <div class="empty-state py-4" x-show="invoices.length === 0" x-cloak>
+          <div class="empty-state-icon"><i class="bi bi-receipt"></i></div>
+          <h6>No invoices yet</h6>
+          <p>Invoices will appear when your plan period is created.</p>
+        </div>
+
+        <div class="table-responsive" x-show="invoices.length > 0" x-cloak>
+          <table class="table table-hover align-middle mb-0">
+            <thead>
+              <tr>
+                <th>Invoice</th>
+                <th class="d-none d-md-table-cell">Plan</th>
+                <th class="d-none d-lg-table-cell">Period</th>
+                <th>Amount</th>
+                <th>Status</th>
+                <th class="d-none d-lg-table-cell">Created</th>
+                <th class="d-none d-lg-table-cell">Paid</th>
+                <th class="text-end">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="inv in invoices" :key="inv.id">
+                <tr>
+                  <td>
+                    <div class="fw-semibold" x-text="'#' + inv.id"></div>
+                    <div class="text-muted text-xs d-md-none" x-text="inv.plan_name || 'Plan'"></div>
+                  </td>
+                  <td class="d-none d-md-table-cell">
+                    <span x-text="inv.plan_name || '-'"></span>
+                  </td>
+                  <td class="d-none d-lg-table-cell">
+                    <span x-text="fmtDate(inv.period_start)"></span>
+                    <span class="mx-1 text-muted">-</span>
+                    <span x-text="fmtDate(inv.period_end)"></span>
+                  </td>
+                  <td>
+                    <span class="fw-semibold" x-text="fmtMoney(inv.amount, inv.currency)"></span>
+                  </td>
+                  <td>
+                    <span class="badge text-capitalize" :class="invoiceStatusClass(inv.status)" x-text="inv.status || 'pending'"></span>
+                  </td>
+                  <td class="d-none d-lg-table-cell text-muted" x-text="fmtDateTime(inv.created_at)"></td>
+                  <td class="d-none d-lg-table-cell text-muted" x-text="inv.paid_at ? fmtDateTime(inv.paid_at) : '-'"></td>
+                  <td class="text-end">
+                    <button class="btn btn-sm btn-primary"
+                            x-show="$store.auth.role === 'admin' && String(inv.status || '').toLowerCase() !== 'paid'"
+                            :disabled="chargingInvoiceId === String(inv.id)"
+                            @click="chargeInvoice(inv.id)">
+                      <span class="spinner-border spinner-border-sm me-1"
+                            x-show="chargingInvoiceId === String(inv.id)" x-cloak></span>
+                      <span x-text="chargingInvoiceId === String(inv.id) ? 'Charging...' : 'Charge'"></span>
+                    </button>
+                    <span class="text-muted text-sm"
+                          x-show="String(inv.status || '').toLowerCase() === 'paid'">Paid</span>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
 
   </div><!-- /loaded -->

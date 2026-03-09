@@ -1,27 +1,22 @@
-﻿<?php
+<?php
 $pageTitle  = 'Task Detail';
 $activePage = 'tasks';
 ob_start();
 ?>
 <div x-data="taskDetailPage">
 
-  <div class="page-header">
-    <div>
-      <h1 class="page-title" x-text="task ? task.name : 'Task Detail'">Task Detail</h1>
-      <ol class="breadcrumb mb-0 text-sm">
-        <li class="breadcrumb-item"><a href="/tasks" class="text-decoration-none text-muted">Tasks</a></li>
-        <li class="breadcrumb-item active" x-text="task ? task.name : '…'">…</li>
-      </ol>
-    </div>
-    <div class="d-flex gap-2">
-      <a :href="'/scans/new-video?task_id=' + taskId" class="btn btn-outline-primary">
-        <i class="bi bi-camera-video me-1"></i>Video Scan
-      </a>
-      <a :href="'/scans/new-manual?task_id=' + taskId" class="btn btn-primary">
-        <i class="bi bi-upc-scan me-1"></i>Manual Scan
-      </a>
-    </div>
-  </div>
+  <?php
+  $headerTitleHtml = '<h1 class="page-title" x-text="task ? task.name : \"Task Detail\"">Task Detail</h1>';
+  $headerBreadcrumbHtml = '<ol class="breadcrumb mb-0 text-sm"><li class="breadcrumb-item"><a href="/tasks" class="text-decoration-none text-muted">Tasks</a></li><li class="breadcrumb-item active" x-text="task ? task.name : \"…\"">…</li></ol>';
+  $headerActionsHtml = '
+    <a :href="\'/scans/new-video?task_id=\' + taskId" class="btn btn-outline-primary">
+      <i class="bi bi-camera-video me-1"></i>Video Scan
+    </a>
+    <a :href="\'/scans/new-manual?task_id=\' + taskId" class="btn btn-primary">
+      <i class="bi bi-upc-scan me-1"></i>Manual Scan
+    </a>';
+  require __DIR__ . '/../partials/page-header.php';
+  ?>
 
   <!-- Loading -->
   <div class="text-center py-5" x-show="loading" x-cloak>
@@ -125,9 +120,25 @@ ob_start();
                         <i class="bi bi-person-check me-2 text-muted"></i>Observer Rating
                       </a>
                     </li>
-                    <li>
+                    <li><hr class="dropdown-divider"></li>
+                    <template x-if="s.scan_type === 'video'">
+                      <li>
+                        <a class="dropdown-item" :href="'/scans/new-video?task_id=' + taskId + '&parent_scan_id=' + s.id + '&parent_model=' + (s.model || '')">
+                          <i class="bi bi-camera-video me-2 text-muted"></i>Repeat Scan (Video)
+                        </a>
+                      </li>
+                    </template>
+                    <template x-if="s.scan_type === 'manual'">
+                      <li>
+                        <a class="dropdown-item" :href="'/scans/new-manual?task_id=' + taskId + '&parent_scan_id=' + s.id + '&parent_model=' + (s.model || '')">
+                          <i class="bi bi-upc-scan me-2 text-muted"></i>Repeat Scan (Manual)
+                        </a>
+                      </li>
+                    </template>
+                    <li x-show="s.parent_scan_id != null" x-cloak><hr class="dropdown-divider"></li>
+                    <li x-show="s.parent_scan_id != null" x-cloak>
                       <a class="dropdown-item" :href="'/scans/' + s.id + '/compare'">
-                        <i class="bi bi-bar-chart-steps me-2 text-muted"></i>Compare
+                        <i class="bi bi-bar-chart-steps me-2 text-primary"></i>Compare with Previous
                       </a>
                     </li>
                   </ul>

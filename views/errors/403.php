@@ -7,6 +7,7 @@ $pageTitle = '403 – Access Denied';
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>WorkEddy | <?= htmlspecialchars($pageTitle) ?></title>
+  <link rel="icon" type="image/png" href="/assets/img/favicon.ico" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link href="/assets/css/core.css" rel="stylesheet">
@@ -18,7 +19,7 @@ $pageTitle = '403 – Access Denied';
 <div class="d-flex flex-column align-items-center justify-content-center min-vh-100 text-center px-3">
 
   <div class="auth-brand mb-4">
-    <div class="auth-brand-logo"><i class="bi bi-activity"></i></div>
+    <img src="/assets/img/logo.png" alt="WorkEddy logo" class="auth-brand-logo" />
     <span class="auth-brand-name">WorkEddy</span>
   </div>
 

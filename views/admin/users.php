@@ -1,19 +1,16 @@
-﻿<?php
-$pageTitle  = 'Global Users';
+<?php
+$pageTitle = 'Global Users';
 $activePage = 'admin-users';
 ob_start();
 ?>
 <div x-data="adminUsersPage">
 
-  <!-- Page Header -->
-  <div class="page-header">
-    <div>
-      <h1 class="page-title">Global Users</h1>
-      <p class="page-breadcrumb">Admin / Users</p>
-    </div>
-    <span class="badge badge-soft-secondary px-3 py-2 text-sm"
-          x-text="users.length + ' total'"></span>
-  </div>
+  <?php
+  $headerTitle = 'Global Users';
+  $headerBreadcrumb = 'Admin / Users';
+  $headerActionsHtml = '<span class="badge badge-soft-secondary px-3 py-2 text-sm" x-text="users.length + \' total\'"></span>';
+  require __DIR__ . '/../partials/page-header.php';
+  ?>
 
   <div class="card">
 
@@ -21,20 +18,18 @@ ob_start();
     <div class="table-toolbar">
       <div class="search-box">
         <i class="bi bi-search"></i>
-        <input class="form-control" type="search"
-               placeholder="Search by name or email…" x-model="search">
+        <input class="form-control" type="search" placeholder="Search by name or email…" x-model="search">
       </div>
       <div class="toolbar-right">
-        <select class="form-select form-select-sm" x-model="filterRole"
-                style="width:auto;min-width:110px;">
+        <select class="form-select form-select-sm" x-model="filterRole" style="width:auto;min-width:110px;">
           <option value="">All Roles</option>
+          <option value="super_admin">Super Admin</option>
           <option value="admin">Admin</option>
           <option value="supervisor">Supervisor</option>
           <option value="worker">Worker</option>
           <option value="observer">Observer</option>
         </select>
-        <select class="form-select form-select-sm" x-model="filterStatus"
-                style="width:auto;min-width:110px;">
+        <select class="form-select form-select-sm" x-model="filterStatus" style="width:auto;min-width:110px;">
           <option value="">All Status</option>
           <option value="active">Active</option>
           <option value="inactive">Inactive</option>
@@ -61,8 +56,7 @@ ob_start();
     </div>
 
     <!-- Table -->
-    <div class="table-responsive"
-         x-show="!loading && !error && filtered.length > 0" x-cloak>
+    <div class="table-responsive" x-show="!loading && !error && filtered.length > 0" x-cloak>
       <table class="table table-hover mb-0 align-middle">
         <thead>
           <tr>
@@ -79,12 +73,11 @@ ob_start();
             <tr>
               <td>
                 <div class="d-flex align-items-center gap-2">
-                  <div class="avatar avatar-sm"
-                       :class="'avatar-' + (u.role === 'admin' ? 'primary'
+                  <div class="avatar avatar-sm" :class="'avatar-' + (u.role === 'admin' ? 'primary'
                                           : u.role === 'supervisor' ? 'info'
                                           : u.role === 'worker' ? 'secondary'
                                           : 'warning')"
-                       x-text="(u.name || '?').split(' ').map(w => w[0]).join('').toUpperCase().slice(0,2)">
+                    x-text="(u.name || '?').split(' ').map(w => w[0]).join('').toUpperCase().slice(0,2)">
                   </div>
                   <span class="fw-medium" x-text="u.name"></span>
                 </div>
@@ -94,15 +87,12 @@ ob_start();
                 <span class="badge badge-soft-secondary" x-text="u.org_name"></span>
               </td>
               <td>
-                <span class="badge text-capitalize"
-                      :class="roleBadge(u.role)" x-text="u.role"></span>
+                <span class="badge text-capitalize" :class="roleBadge(u.role)" x-text="u.role"></span>
               </td>
               <td>
-                <span class="badge"
-                      :class="(u.status || 'active') === 'active'   ? 'badge-soft-success'
+                <span class="badge" :class="(u.status || 'active') === 'active'   ? 'badge-soft-success'
                             : (u.status || 'active') === 'invited'  ? 'badge-soft-info'
-                            : 'badge-soft-secondary'"
-                      x-text="u.status || 'active'"></span>
+                            : 'badge-soft-secondary'" x-text="u.status || 'active'"></span>
               </td>
               <td class="text-end">
                 <div class="dropdown">
@@ -115,10 +105,17 @@ ob_start();
                         <i class="bi bi-pencil me-2 text-muted"></i>Edit
                       </button>
                     </li>
-                    <li><hr class="dropdown-divider my-1"></li>
                     <li>
-                      <button class="dropdown-item text-danger" @click="confirmDelete(u)">
-                        <i class="bi bi-trash me-2"></i>Delete
+                      <hr class="dropdown-divider my-1">
+                    </li>
+                    <li>
+                      <button class="dropdown-item text-danger" @click="requestDelete(u)"
+                        :disabled="deletingUserLoading && deletingUserId === u.id">
+                        <span class="spinner-border spinner-border-sm me-2"
+                          x-show="deletingUserLoading && deletingUserId === u.id" x-cloak></span>
+                        <i class="bi bi-trash me-2" x-show="!(deletingUserLoading && deletingUserId === u.id)"
+                          x-cloak></i>
+                        <span x-text="deletingUserLoading && deletingUserId === u.id ? 'Deleting…' : 'Delete'"></span>
                       </button>
                     </li>
                   </ul>
@@ -132,9 +129,8 @@ ob_start();
 
     <!-- Footer -->
     <div class="card-footer d-flex justify-content-between align-items-center py-2"
-         x-show="!loading && !error && filtered.length > 0" x-cloak>
-      <span class="text-muted text-sm"
-            x-text="'Showing ' + filtered.length + ' of ' + users.length + ' users'"></span>
+      x-show="!loading && !error && filtered.length > 0" x-cloak>
+      <span class="text-muted text-sm" x-text="'Showing ' + filtered.length + ' of ' + users.length + ' users'"></span>
     </div>
 
   </div><!-- /card -->
@@ -161,6 +157,7 @@ ob_start();
             <div class="col-6">
               <label class="form-label" for="editRole">Role</label>
               <select class="form-select" id="editRole" x-model="editForm.role">
+                <option value="super_admin">Super Admin</option>
                 <option value="admin">Admin</option>
                 <option value="supervisor">Supervisor</option>
                 <option value="worker">Worker</option>
@@ -179,32 +176,9 @@ ob_start();
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-          <button type="button" class="btn btn-primary" @click="saveUser()">Update</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Delete Confirm Modal -->
-  <div class="modal fade" id="deleteUserModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-sm">
-      <div class="modal-content">
-        <div class="modal-header border-0 pb-0">
-          <h6 class="modal-title text-danger">
-            <i class="bi bi-exclamation-triangle me-2"></i>Delete User
-          </h6>
-          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-        </div>
-        <div class="modal-body">
-          <p class="mb-0">
-            Delete <strong x-text="deletingUser?.name"></strong>?
-            This action cannot be undone.
-          </p>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-          <button type="button" class="btn btn-danger" @click="doDelete()">
-            <i class="bi bi-trash me-1"></i>Delete
+          <button type="button" class="btn btn-primary" @click="saveUser()" :disabled="savingUser">
+            <span class="spinner-border spinner-border-sm me-1" x-show="savingUser" x-cloak></span>
+            <span x-text="savingUser ? 'Updating…' : 'Update'"></span>
           </button>
         </div>
       </div>

@@ -8,6 +8,7 @@ use WorkEddy\Helpers\Auth;
 use WorkEddy\Helpers\Response;
 use WorkEddy\Helpers\Validator;
 use WorkEddy\Services\Ergonomics\AssessmentEngine;
+use WorkEddy\Services\ScanComparisonService;
 use WorkEddy\Services\ScanService;
 use WorkEddy\Services\VideoProcessingService;
 
@@ -17,6 +18,7 @@ final class ScanController
         private readonly ScanService            $scans,
         private readonly VideoProcessingService $videoService,
         private readonly AssessmentEngine       $assessmentEngine,
+        private readonly ScanComparisonService  $comparisons,
     ) {}
 
     /**
@@ -31,9 +33,11 @@ final class ScanController
     {
         Auth::requireRoles($claims, ['admin', 'supervisor', 'worker', 'observer']);
         $orgId = Auth::orgId($claims);
+        $status = isset($_GET['status']) ? (string) $_GET['status'] : null;
+        $limit = isset($_GET['limit']) ? (int) $_GET['limit'] : null;
         $data  = $taskId !== null
-            ? $this->scans->listByTask($orgId, $taskId)
-            : $this->scans->listByOrganization($orgId);
+            ? $this->scans->listByTask($orgId, $taskId, $status, $limit)
+            : $this->scans->listByOrganization($orgId, $status, $limit);
         Response::json(['data' => $data]);
     }
 
@@ -105,5 +109,28 @@ final class ScanController
     {
         Auth::requireRoles($claims, ['admin', 'supervisor', 'worker', 'observer']);
         Response::json(['data' => $this->scans->compare(Auth::orgId($claims), $id)]);
+    }
+
+    /**
+     * GET /scans/compare?scanA={id}&scanB={id}
+     */
+    public function compareScans(array $claims): never
+    {
+        Auth::requireRoles($claims, ['admin', 'supervisor', 'worker', 'observer']);
+
+        $scanA = isset($_GET['scanA']) ? (int) $_GET['scanA'] : 0;
+        $scanB = isset($_GET['scanB']) ? (int) $_GET['scanB'] : 0;
+        if ($scanA <= 0 || $scanB <= 0) {
+            Response::error('Query params scanA and scanB are required positive integers', 422);
+        }
+
+        try {
+            $result = $this->comparisons->compare(Auth::orgId($claims), $scanA, $scanB);
+        } catch (\RuntimeException $e) {
+            $msg = $e->getMessage();
+            $code = str_contains($msg, 'not found') ? 404 : 422;
+            Response::error($msg, $code);
+        }
+        Response::json(['data' => $result]);
     }
 }

@@ -63,8 +63,14 @@ return static function (Container $c): Closure {
         $r->addRoute('POST', '/scans/manual',       fn ($v, $b) => $c->scanCtrl()->createManual($c->auth(), $b));
         $r->addRoute('POST', '/scans/video',        fn ($v, $b) => $c->scanCtrl()->createVideo($c->auth(), $b, $_FILES));
         $r->addRoute('GET',  '/scans',              fn ($v, $b) => $c->scanCtrl()->indexManual($c->auth(), isset($_GET['task_id']) ? (int) $_GET['task_id'] : null));
+        $r->addRoute('GET',  '/scans/compare',      fn ($v, $b) => $c->scanCtrl()->compareScans($c->auth()));
         $r->addRoute('GET',  '/scans/{id:\d+}',     fn ($v, $b) => $c->scanCtrl()->show($c->auth(), (int) $v['id']));
         $r->addRoute('GET',  '/scans/{id:\d+}/compare', fn ($v, $b) => $c->scanCtrl()->compare($c->auth(), (int) $v['id']));
+
+        // ── Internal worker callbacks (token-authenticated) ───────────
+        $r->addRoute('POST', '/internal/worker/jobs/next',      fn ($v, $b) => $c->workerCtrl()->nextJob());
+        $r->addRoute('POST', '/internal/worker/scans/complete', fn ($v, $b) => $c->workerCtrl()->complete($b));
+        $r->addRoute('POST', '/internal/worker/scans/fail',     fn ($v, $b) => $c->workerCtrl()->fail($b));
 
         // ── Observer ──────────────────────────────────────────────────
         $r->addRoute('POST', '/observer-rating',            fn ($v, $b) => $c->observerCtrl()->rate($c->auth(), $b));
@@ -83,8 +89,10 @@ return static function (Container $c): Closure {
         // ── Billing ───────────────────────────────────────────────────
         $r->addRoute('GET', '/billing/usage', fn ($v, $b) => $c->billingCtrl()->usage($c->auth()));
         $r->addRoute('GET', '/billing/plans', fn ($v, $b) => $c->billingCtrl()->plans($c->auth()));
+        $r->addRoute('GET', '/billing/invoices', fn ($v, $b) => $c->billingCtrl()->invoices($c->auth()));
+        $r->addRoute('POST', '/billing/invoices/{id:\\d+}/charge', fn ($v, $b) => $c->billingCtrl()->chargeInvoice($c->auth(), (int) $v['id'], $b));
 
-        // ── Admin (system-wide, role: admin) ──────────────────────────
+        // ── Admin (system-wide, role: super_admin) ────────────────────
         $r->addRoute('GET',    '/admin/stats',                    fn ($v, $b) => $c->adminCtrl()->stats($c->auth()));
         $r->addRoute('GET',    '/admin/organizations',            fn ($v, $b) => $c->adminCtrl()->listOrganizations($c->auth()));
         $r->addRoute('POST',   '/admin/organizations',            fn ($v, $b) => $c->adminCtrl()->createOrganization($c->auth(), $b));
@@ -111,3 +119,4 @@ return static function (Container $c): Closure {
         $r->addRoute('PUT',    '/org/subscription',      fn ($v, $b) => $c->orgCtrl()->changePlan($c->auth(), $b));
     };
 };
+

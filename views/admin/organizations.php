@@ -5,16 +5,12 @@ ob_start();
 ?>
 <div x-data="adminOrgsPage">
 
-  <!-- Page Header -->
-  <div class="page-header">
-    <div>
-      <h1 class="page-title">Organizations</h1>
-      <p class="page-breadcrumb">Admin / Organizations</p>
-    </div>
-    <button class="btn btn-primary" @click="openCreate()">
-      <i class="bi bi-plus-lg me-1"></i>New Organization
-    </button>
-  </div>
+  <?php
+  $headerTitle = 'Organizations';
+  $headerBreadcrumb = 'Admin / Organizations';
+  $headerActionsHtml = '<button class="btn btn-primary" @click="openCreate()"><i class="bi bi-plus-lg me-1"></i>New Organization</button>';
+  require __DIR__ . '/../partials/page-header.php';
+  ?>
 
   <div class="card">
 
@@ -99,8 +95,10 @@ ob_start();
                     <li>
                       <button class="dropdown-item"
                               :class="org.status === 'active' ? 'text-warning' : 'text-success'"
+                              :disabled="togglingOrgId === org.id"
                               @click="toggleStatus(org)">
-                        <i class="bi me-2"
+                        <span class="spinner-border spinner-border-sm me-2" x-show="togglingOrgId === org.id" x-cloak></span>
+                        <i class="bi me-2" x-show="togglingOrgId !== org.id" x-cloak
                            :class="org.status === 'active' ? 'bi-pause-circle' : 'bi-play-circle'"></i>
                         <span x-text="org.status === 'active' ? 'Suspend' : 'Activate'"></span>
                       </button>
@@ -154,8 +152,10 @@ ob_start();
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-          <button type="button" class="btn btn-primary" @click="saveOrg()"
-                  x-text="editingOrg ? 'Update' : 'Create'"></button>
+          <button type="button" class="btn btn-primary" @click="saveOrg()" :disabled="savingOrg">
+            <span class="spinner-border spinner-border-sm me-1" x-show="savingOrg" x-cloak></span>
+            <span x-text="savingOrg ? 'Saving…' : (editingOrg ? 'Update' : 'Create')"></span>
+          </button>
         </div>
       </div>
     </div>

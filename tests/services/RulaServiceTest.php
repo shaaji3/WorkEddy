@@ -33,18 +33,22 @@ final class RulaServiceTest extends TestCase
         $metrics = [
             'upper_arm_angle' => 10,
             'lower_arm_angle' => 80,
-            'wrist_angle'     => 3,
-            'neck_angle'      => 8,
-            'trunk_angle'     => 5,
-            'leg_score'       => 1,
-            'load_weight'     => 0,
+            'wrist_angle' => 3,
+            'neck_angle' => 8,
+            'trunk_angle' => 5,
+            'leg_score' => 1,
+            'load_weight' => 0,
         ];
 
         $result = $this->rula->calculateScore($metrics);
 
-        $this->assertArrayHasKey('score', $result);
+        foreach (['score', 'risk_level', 'normalized_score', 'risk_category', 'action_level_code', 'action_level_label', 'algorithm_version'] as $key) {
+            $this->assertArrayHasKey($key, $result);
+        }
+
         $this->assertLessThanOrEqual(4, $result['score']);
         $this->assertContains($result['risk_category'], ['low', 'moderate']);
+        $this->assertSame('rula_official_v1', $result['algorithm_version']);
     }
 
     public function testHighRiskInput(): void
@@ -52,20 +56,22 @@ final class RulaServiceTest extends TestCase
         $metrics = [
             'upper_arm_angle' => 120,
             'lower_arm_angle' => 40,
-            'wrist_angle'     => 20,
-            'wrist_twist'     => true,
-            'neck_angle'      => 30,
-            'trunk_angle'     => 70,
-            'leg_score'       => 2,
-            'load_weight'     => 15,
-            'static_posture'  => true,
-            'repetitive'      => true,
+            'wrist_angle' => 20,
+            'wrist_twist' => true,
+            'neck_angle' => 30,
+            'trunk_angle' => 70,
+            'leg_score' => 2,
+            'load_weight' => 15,
+            'static_posture' => true,
+            'repetitive' => true,
+            'trunk_twisted' => true,
         ];
 
         $result = $this->rula->calculateScore($metrics);
 
         $this->assertGreaterThanOrEqual(5, $result['score']);
         $this->assertSame('high', $result['risk_category']);
+        $this->assertGreaterThanOrEqual(3, $result['action_level_code']);
     }
 
     public function testScoreIsClampedBetween1And7(): void
@@ -73,9 +79,9 @@ final class RulaServiceTest extends TestCase
         $metrics = [
             'upper_arm_angle' => 15,
             'lower_arm_angle' => 80,
-            'wrist_angle'     => 5,
-            'neck_angle'      => 10,
-            'trunk_angle'     => 10,
+            'wrist_angle' => 5,
+            'neck_angle' => 10,
+            'trunk_angle' => 10,
         ];
 
         $result = $this->rula->calculateScore($metrics);
@@ -88,7 +94,7 @@ final class RulaServiceTest extends TestCase
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('RULA requires field');
 
-        $this->rula->validate(['upper_arm_angle' => 20]); // missing others
+        $this->rula->validate(['upper_arm_angle' => 20]);
     }
 
     public function testRiskLevelStrings(): void

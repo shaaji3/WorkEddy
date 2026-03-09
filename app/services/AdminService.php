@@ -66,7 +66,7 @@ final class AdminService
         $filtered = array_intersect_key($data, array_flip($allowed));
 
         if (isset($filtered['role'])) {
-            $validRoles = ['admin', 'supervisor', 'worker', 'observer'];
+            $validRoles = ['super_admin', 'admin', 'supervisor', 'worker', 'observer'];
             if (!in_array($filtered['role'], $validRoles, true)) {
                 throw new RuntimeException('Invalid role. Allowed: ' . implode(', ', $validRoles));
             }

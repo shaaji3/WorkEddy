@@ -7,7 +7,7 @@ ob_start();
 
     <!-- Brand -->
     <div class="auth-brand">
-      <div class="auth-brand-logo"><i class="bi bi-activity"></i></div>
+      <img src="/assets/img/logo.png" alt="WorkEddy logo" class="auth-brand-logo" />
       <span class="auth-brand-name">WorkEddy</span>
     </div>
 

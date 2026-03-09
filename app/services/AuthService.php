@@ -44,7 +44,7 @@ final class AuthService
         $this->email->sendWelcome($email, $name);
 
         return [
-            'token' => $this->jwt->issueToken($userId, $orgId, 'admin', $name, 'Starter'),
+            'token' => $this->jwt->issueToken($userId, $orgId, 'admin', $name, 'Free'),
             'user'  => [
                 'id'              => $userId,
                 'organization_id' => $orgId,
@@ -238,8 +238,9 @@ final class AuthService
     {
         $planName = 'Free';
         try {
-            $plan     = $this->workspaces->activePlan((int) $user['organization_id']);
-            $planName = ucfirst((string) $plan['name']);
+            $plan = $this->workspaces->activePlan((int) $user['organization_id']);
+            $rawPlanName = strtolower((string) ($plan['name'] ?? ''));
+            $planName = $rawPlanName === 'starter' ? 'Free' : ucfirst($rawPlanName);
         } catch (\Throwable) { /* no active subscription — default to Free */ }
 
         return [

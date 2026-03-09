@@ -166,8 +166,9 @@ return new class implements MigrationInterface {
         $scanResults->addColumn('scan_id', 'bigint', ['unsigned' => true]);
         $scanResults->addColumn('model', 'string', ['length' => 20]);
         $scanResults->addColumn('score', 'decimal', ['precision' => 10, 'scale' => 2]);
-        $scanResults->addColumn('risk_level', 'string', ['length' => 50]);
+        $scanResults->addColumn('risk_level', 'string', ['length' => 191]);
         $scanResults->addColumn('recommendation', 'text', ['notnull' => false]);
+        $scanResults->addColumn('algorithm_version', 'string', ['length' => 64, 'default' => 'legacy_v1']);
         $scanResults->addColumn('created_at', 'datetime', [
             'columnDefinition' => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
         ]);
@@ -268,3 +269,7 @@ return new class implements MigrationInterface {
         $table->setPrimaryKey(['id']);
     }
 };
+
+
+
+

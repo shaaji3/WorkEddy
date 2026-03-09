@@ -82,7 +82,7 @@ $auth = static function (string $viewFile, ?array $allowedRoles = null) use ($ba
         }
 
         // Role gate (e.g. admin-only pages)
-        if ($allowedRoles !== null && !in_array($claims['role'] ?? '', $allowedRoles, true)) {
+        if ($allowedRoles !== null && (($claims['role'] ?? '') !== 'super_admin') && !in_array($claims['role'] ?? '', $allowedRoles, true)) {
             http_response_code(403);
             require $basePath . '/views/errors/403.php';
             exit;
@@ -146,16 +146,17 @@ return static function (FastRoute\RouteCollector $r) use ($view, $auth, $guest):
     $r->addRoute('GET', '/tasks/{id:\d+}',    $auth('views/tasks/view.php'));
     $r->addRoute('GET', '/scans/new-manual',  $auth('views/scans/new-manual.php'));
     $r->addRoute('GET', '/scans/new-video',   $auth('views/scans/new-video.php'));
+    $r->addRoute('GET', '/scans/compare',     $auth('views/scans/advanced-compare.php'));
     $r->addRoute('GET', '/scans/{id:\d+}',    $auth('views/scans/results.php'));
     $r->addRoute('GET', '/scans/{id:\d+}/compare', $auth('views/scans/compare.php'));
     $r->addRoute('GET', '/scans/{id:\d+}/observe',  $auth('views/observer/rate.php', ['admin', 'observer']));
 
-    // ── Admin (system-wide, role: admin only) ─────────────────────────
-    $r->addRoute('GET', '/admin/dashboard',     $auth('views/admin/dashboard.php', ['admin']));
-    $r->addRoute('GET', '/admin/organizations', $auth('views/admin/organizations.php', ['admin']));
-    $r->addRoute('GET', '/admin/users',         $auth('views/admin/users.php', ['admin']));
-    $r->addRoute('GET', '/admin/plans',         $auth('views/admin/plans.php', ['admin']));
-    $r->addRoute('GET', '/admin/settings',      $auth('views/admin/settings.php', ['admin']));
+    // ── Admin (system-wide, role: super_admin only) ───────────────────
+    $r->addRoute('GET', '/admin/dashboard',     $auth('views/admin/dashboard.php', ['super_admin']));
+    $r->addRoute('GET', '/admin/organizations', $auth('views/admin/organizations.php', ['super_admin']));
+    $r->addRoute('GET', '/admin/users',         $auth('views/admin/users.php', ['super_admin']));
+    $r->addRoute('GET', '/admin/plans',         $auth('views/admin/plans.php', ['super_admin']));
+    $r->addRoute('GET', '/admin/settings',      $auth('views/admin/settings.php', ['super_admin']));
 
     // ── Org management (admin + supervisor) ───────────────────────────
     $r->addRoute('GET', '/org/users',    $auth('views/org/users.php', ['admin', 'supervisor']));

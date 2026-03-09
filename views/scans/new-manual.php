@@ -1,25 +1,19 @@
-﻿<?php
+<?php
 $pageTitle  = 'New Manual Scan';
 $activePage = 'scans';
 ob_start();
 ?>
 <div x-data="manualScanPage">
 
-  <!-- Page Header -->
-  <div class="page-header">
-    <div>
-      <h1 class="page-title">New Manual Scan</h1>
-      <ol class="breadcrumb mb-0 text-sm">
-        <li class="breadcrumb-item"><a href="/tasks" class="text-decoration-none text-muted">Tasks</a></li>
-        <li class="breadcrumb-item active">Manual Scan</li>
-      </ol>
-    </div>
-    <a href="/tasks" class="btn btn-outline-secondary">
-      <i class="bi bi-arrow-left me-1"></i>Tasks
-    </a>
-  </div>
+  <?php
+  $headerTitle = 'New Manual Scan';
+  $headerBreadcrumbHtml = '<ol class="breadcrumb mb-0 text-sm"><li class="breadcrumb-item"><a href="/tasks" class="text-decoration-none text-muted">Tasks</a></li><li class="breadcrumb-item active">Manual Scan</li></ol>';
+  $headerActionsHtml = '<a href="/tasks" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i>Tasks</a>';
+  require __DIR__ . '/../partials/page-header.php';
+  ?>
 
   <div style="max-width:760px;">
+    <form @submit.prevent="submit">
 
     <!-- Error -->
     <div class="alert alert-danger align-items-center gap-2"
@@ -48,7 +42,8 @@ ob_start();
                 <button type="button"
                         class="btn btn-sm"
                         :class="model === m.value ? 'btn-primary' : 'btn-outline-secondary'"
-                        @click="model = m.value"
+                        @click="if (!parentScanId) model = m.value"
+                        :disabled="parentScanId != null"
                         x-text="m.label"></button>
               </template>
             </div>
@@ -194,13 +189,15 @@ ob_start();
 
     <!-- Submit -->
     <div class="d-flex gap-2">
-      <button class="btn btn-primary" @click="submit" :disabled="loading">
+      <button type="submit" class="btn btn-primary" :disabled="loading">
         <span class="spinner-border spinner-border-sm me-2" x-show="loading" x-cloak></span>
         <i class="bi bi-play-fill me-1" x-show="!loading"></i>
         <span x-text="loading ? 'Analysing…' : 'Run Assessment'"></span>
       </button>
       <a href="/tasks" class="btn btn-light">Cancel</a>
     </div>
+
+    </form>
 
   </div>
 </div>

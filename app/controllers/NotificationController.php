@@ -66,7 +66,7 @@ final class NotificationController
      */
     public function send(array $claims, array $body): never
     {
-        Auth::requireRoles($claims, ['admin']);
+        Auth::requireRoles($claims, ['super_admin']);
 
         $title  = trim($body['title'] ?? '');
         $message = trim($body['message'] ?? '');

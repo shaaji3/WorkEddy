@@ -14,6 +14,7 @@ return array(
     'WorkEddy\\Helpers\\' => array($baseDir . '/app/helpers'),
     'WorkEddy\\Core\\' => array($baseDir . '/app/core'),
     'WorkEddy\\Controllers\\' => array($baseDir . '/app/controllers'),
+    'WorkEddy\\Contracts\\' => array($baseDir . '/app/contracts'),
     'Psr\\Log\\' => array($vendorDir . '/psr/log/src'),
     'Psr\\Cache\\' => array($vendorDir . '/psr/cache/src'),
     'Predis\\' => array($vendorDir . '/predis/predis/src'),

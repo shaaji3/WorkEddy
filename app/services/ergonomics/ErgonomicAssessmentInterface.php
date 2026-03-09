@@ -13,13 +13,14 @@ namespace WorkEddy\Services\Ergonomics;
 interface ErgonomicAssessmentInterface
 {
     /**
-     * @return string  Model identifier: 'rula' | 'reba' | 'niosh'
+     * @return string Model identifier: 'rula' | 'reba' | 'niosh'
      */
     public function modelName(): string;
 
     /**
      * Which input types this model supports.
-     * @return string[]  e.g. ['manual','video'] or ['manual']
+     *
+     * @return string[] e.g. ['manual','video'] or ['manual']
      */
     public function supportedInputTypes(): array;
 
@@ -32,7 +33,8 @@ interface ErgonomicAssessmentInterface
      * Calculate score from validated metrics.
      *
      * @return array{score: float, risk_level: string, recommendation: string,
-     *               raw_score: float, normalized_score: float, risk_category: string}
+     *               raw_score: float, normalized_score: float, risk_category: string,
+     *               action_level_code?: int, action_level_label?: string, algorithm_version?: string}
      */
     public function calculateScore(array $metrics): array;
 

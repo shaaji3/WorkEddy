@@ -5,16 +5,12 @@ ob_start();
 ?>
 <div x-data="adminPlansPage">
 
-  <!-- Page Header -->
-  <div class="page-header">
-    <div>
-      <h1 class="page-title">Subscription Plans</h1>
-      <p class="page-breadcrumb">Admin / Plans</p>
-    </div>
-    <button class="btn btn-primary" @click="openCreate()">
-      <i class="bi bi-plus-lg me-1"></i>New Plan
-    </button>
-  </div>
+  <?php
+  $headerTitle = 'Subscription Plans';
+  $headerBreadcrumb = 'Admin / Plans';
+  $headerActionsHtml = '<button class="btn btn-primary" @click="openCreate()"><i class="bi bi-plus-lg me-1"></i>New Plan</button>';
+  require __DIR__ . '/../partials/page-header.php';
+  ?>
 
   <div class="card">
 
@@ -97,8 +93,13 @@ ob_start();
                     </li>
                     <li><hr class="dropdown-divider my-1"></li>
                     <li>
-                      <button class="dropdown-item text-danger" @click="confirmDelete(plan)">
-                        <i class="bi bi-trash me-2"></i>Delete
+                      <button class="dropdown-item text-danger"
+                              @click="requestDelete(plan)"
+                              :disabled="deleting && deletingPlanId === plan.id">
+                        <span class="spinner-border spinner-border-sm me-2"
+                              x-show="deleting && deletingPlanId === plan.id" x-cloak></span>
+                        <i class="bi bi-trash me-2" x-show="!(deleting && deletingPlanId === plan.id)" x-cloak></i>
+                        <span x-text="deleting && deletingPlanId === plan.id ? 'Deleting…' : 'Delete'"></span>
                       </button>
                     </li>
                   </ul>
@@ -171,30 +172,6 @@ ob_start();
             <span x-show="saving" class="spinner-border spinner-border-sm me-1"></span>
             <span x-text="editingPlan ? 'Save Changes' : 'Create Plan'"></span>
           </button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Delete Confirm Modal -->
-  <div class="modal fade" id="deletePlanModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-sm">
-      <div class="modal-content">
-        <div class="modal-header border-0 pb-0">
-          <h6 class="modal-title text-danger">
-            <i class="bi bi-trash me-2"></i>Delete Plan
-          </h6>
-          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-        </div>
-        <div class="modal-body">
-          <p class="mb-0">
-            Delete <strong x-text="deletingPlan?.name"></strong>?
-            Organizations on this plan will be unaffected until their next renewal.
-          </p>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-          <button type="button" class="btn btn-danger" @click="doDelete()">Delete</button>
         </div>
       </div>
     </div>

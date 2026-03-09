@@ -132,7 +132,7 @@
   <nav class="navbar navbar-expand-lg fixed-top marketing-nav py-3">
     <div class="container">
       <a class="navbar-brand d-flex align-items-center gap-2 text-decoration-none" href="/">
-        <div class="auth-brand-logo flex-shrink-0"><i class="bi bi-activity"></i></div>
+        <img src="/assets/img/logo.png" alt="WorkEddy logo" class="auth-brand-logo flex-shrink-0" />
         <span class="auth-brand-name">WorkEddy</span>
       </a>
       <button class="navbar-toggler border-0 shadow-none" type="button" data-bs-toggle="collapse" data-bs-target="#marketingNavbar">
@@ -304,13 +304,13 @@
       <div class="row justify-content-center g-4">
         <div class="col-md-5 col-lg-4">
           <div class="surface-card feature-card p-5 rounded-4 h-100 text-center border-0 shadow-sm">
-            <h4 class="fw-bold mb-3">Starter</h4>
+            <h4 class="fw-bold mb-3">Free</h4>
             <h2 class="display-4 fw-bold mb-2">$0<span class="fs-5 text-muted fw-normal">/mo</span></h2>
-            <p class="text-muted mb-4">Perfect for trying out the platform.</p>
+            <p class="text-muted mb-4">Ideal for smaller teams getting started.</p>
             
             <ul class="list-unstyled text-start mb-4">
-              <li class="mb-3"><i class="bi bi-check-circle-fill text-success me-2"></i> 10 Video scans / month</li>
-              <li class="mb-3"><i class="bi bi-check-circle-fill text-success me-2"></i> Unlimited manual scans</li>
+              <li class="mb-3"><i class="bi bi-check-circle-fill text-success me-2"></i> 10 scans / month</li>
+              <li class="mb-3"><i class="bi bi-check-circle-fill text-success me-2"></i> Manual + video assessments included</li>
               <li class="mb-3"><i class="bi bi-check-circle-fill text-success me-2"></i> 1 Organization</li>
               <li class="mb-3 text-muted"><i class="bi bi-dash-circle me-2"></i> No API Access</li>
             </ul>
@@ -326,8 +326,8 @@
             <p class="text-white-50 mb-4">For growing safety teams.</p>
             
             <ul class="list-unstyled text-start mb-4">
-              <li class="mb-3"><i class="bi bi-check-circle-fill text-warning me-2"></i> 500 Video scans / month</li>
-              <li class="mb-3"><i class="bi bi-check-circle-fill text-warning me-2"></i> Unlimited manual scans</li>
+              <li class="mb-3"><i class="bi bi-check-circle-fill text-warning me-2"></i> 500 scans / month</li>
+              <li class="mb-3"><i class="bi bi-check-circle-fill text-warning me-2"></i> Manual + video assessments included</li>
               <li class="mb-3"><i class="bi bi-check-circle-fill text-warning me-2"></i> Unlimited team members</li>
               <li class="mb-3"><i class="bi bi-check-circle-fill text-warning me-2"></i> Exportable PDF Reports</li>
             </ul>
@@ -335,6 +335,7 @@
           </div>
         </div>
       </div>
+      <p class="text-center text-muted mt-4 mb-0">Scan limits apply to completed manual and video assessments combined.</p>
     </div>
   </section>
 
@@ -343,7 +344,7 @@
     <div class="container py-4">
       <div class="row g-4">
         <div class="col-lg-4">
-          <h4 class="fw-bold mb-3" style="font-family:'Outfit';"><i class="bi bi-activity text-primary"></i> WorkEddy</h4>
+          <h4 class="fw-bold mb-3"><img src="/assets/img/logo.png" alt="WorkEddy logo" class="auth-brand-logo" /> WorkEddy</h4>
           <p class="text-white-50 pe-lg-5">Automating ergonomic risk assessments to protect your workforce and streamline compliance.</p>
         </div>
         <div class="col-6 col-lg-2 offset-lg-2">

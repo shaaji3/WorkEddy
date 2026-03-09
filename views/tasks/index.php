@@ -5,16 +5,12 @@ ob_start();
 ?>
 <div x-data="tasksPage">
 
-  <!-- Page Header -->
-  <div class="page-header">
-    <div>
-      <h1 class="page-title">Tasks</h1>
-      <p class="page-breadcrumb">Home / Tasks</p>
-    </div>
-    <button class="btn btn-primary" @click="openModal()">
-      <i class="bi bi-plus-lg me-1"></i>New Task
-    </button>
-  </div>
+  <?php
+  $headerTitle = 'Tasks';
+  $headerBreadcrumb = 'Home / Tasks';
+  $headerActionsHtml = '<button class="btn btn-primary" @click="openModal()"><i class="bi bi-plus-lg me-1"></i>New Task</button>';
+  require __DIR__ . '/../partials/page-header.php';
+  ?>
 
   <!-- Card with toolbar + table -->
   <div class="card">

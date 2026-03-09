@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace WorkEddy\Core;
 
 use Doctrine\DBAL\Connection;
+use WorkEddy\Contracts\CacheInterface;
+use WorkEddy\Contracts\QueueInterface;
 use WorkEddy\Controllers\AdminController;
 use WorkEddy\Controllers\AuthController;
 use WorkEddy\Controllers\BillingController;
@@ -16,8 +18,11 @@ use WorkEddy\Controllers\ProfileController;
 use WorkEddy\Controllers\ScanController;
 use WorkEddy\Controllers\TaskController;
 use WorkEddy\Controllers\WorkspaceController;
+use WorkEddy\Controllers\WorkerController;
 use WorkEddy\Middleware\AuthMiddleware;
+use WorkEddy\Middleware\RateLimitMiddleware;
 use WorkEddy\Repositories\AdminRepository;
+use WorkEddy\Repositories\BillingRepository;
 use WorkEddy\Repositories\NotificationRepository;
 use WorkEddy\Repositories\ScanRepository;
 use WorkEddy\Repositories\TaskRepository;
@@ -25,7 +30,11 @@ use WorkEddy\Repositories\UserRepository;
 use WorkEddy\Repositories\WorkspaceRepository;
 use WorkEddy\Services\AdminService;
 use WorkEddy\Services\AuthService;
+use WorkEddy\Services\BillingPeriodService;
 use WorkEddy\Services\BillingService;
+use WorkEddy\Services\Cache\ArrayCacheDriver;
+use WorkEddy\Services\Cache\FileCacheDriver;
+use WorkEddy\Services\Cache\RedisCacheDriver;
 use WorkEddy\Services\DashboardService;
 use WorkEddy\Services\EmailService;
 use WorkEddy\Services\Ergonomics\AssessmentEngine;
@@ -33,7 +42,10 @@ use WorkEddy\Services\JwtService;
 use WorkEddy\Services\NotificationService;
 use WorkEddy\Services\ObserverService;
 use WorkEddy\Services\OrgService;
-use WorkEddy\Services\QueueService;
+use WorkEddy\Services\Payments\PaymentGatewayService;
+use WorkEddy\Services\Queue\DatabaseQueueDriver;
+use WorkEddy\Services\Queue\RedisQueueDriver;
+use WorkEddy\Services\ScanComparisonService;
 use WorkEddy\Services\ScanService;
 use WorkEddy\Services\TaskService;
 use WorkEddy\Services\UsageMeterService;
@@ -56,6 +68,11 @@ final class Container
     public function db(): Connection
     {
         return $this->make('db', fn () => Database::connection());
+    }
+
+    public function redis(): RedisConnectionFactory
+    {
+        return $this->make('redis', fn () => new RedisConnectionFactory());
     }
 
     // ─── Repositories ─────────────────────────────────────────────────
@@ -85,6 +102,11 @@ final class Container
         return $this->make('adminRepo', fn () => new AdminRepository($this->db()));
     }
 
+    public function billingRepo(): BillingRepository
+    {
+        return $this->make('billingRepo', fn () => new BillingRepository($this->db()));
+    }
+
     public function notificationRepo(): NotificationRepository
     {
         return $this->make('notificationRepo', fn () => new NotificationRepository($this->db()));
@@ -97,9 +119,27 @@ final class Container
         return $this->make('jwt', fn () => new JwtService());
     }
 
-    public function queue(): QueueService
+    public function queue(): QueueInterface
     {
-        return $this->make('queue', fn () => new QueueService());
+        return $this->make('queue', function (): QueueInterface {
+            $config = require __DIR__ . '/../config/queue.php';
+            return match ($config['driver']) {
+                'db'    => new DatabaseQueueDriver($this->db()),
+                default => new RedisQueueDriver($this->redis()),
+            };
+        });
+    }
+
+    public function cache(): CacheInterface
+    {
+        return $this->make('cache', function (): CacheInterface {
+            $config = require __DIR__ . '/../config/cache.php';
+            return match ($config['driver']) {
+                'file'  => new FileCacheDriver($config['path'] ?? null),
+                'array' => new ArrayCacheDriver(),
+                default => new RedisCacheDriver($this->redis(), $config['prefix'] ?? 'cache:'),
+            };
+        });
     }
 
     public function assessmentEngine(): AssessmentEngine
@@ -107,9 +147,22 @@ final class Container
         return $this->make('assessmentEngine', fn () => new AssessmentEngine());
     }
 
+    public function billingPeriods(): BillingPeriodService
+    {
+        return $this->make('billingPeriods', fn () => new BillingPeriodService());
+    }
+
     public function usageMeter(): UsageMeterService
     {
-        return $this->make('usageMeter', fn () => new UsageMeterService($this->workspaceRepo()));
+        return $this->make('usageMeter', fn () => new UsageMeterService(
+            $this->workspaceRepo(),
+            $this->billingPeriods(),
+        ));
+    }
+
+    public function paymentGateway(): PaymentGatewayService
+    {
+        return $this->make('paymentGateway', fn () => new PaymentGatewayService($this->billingRepo()));
     }
 
     public function videoService(): VideoProcessingService
@@ -150,6 +203,16 @@ final class Container
             $this->assessmentEngine(),
             $this->usageMeter(),
             $this->queue(),
+            $this->cache(),
+            (int) ((require __DIR__ . '/../config/cache.php')['ttl'] ?? 300),
+        ));
+    }
+
+    public function scanComparisonService(): ScanComparisonService
+    {
+        return $this->make('scanComparisonService', fn () => new ScanComparisonService(
+            $this->scanRepo(),
+            $this->assessmentEngine(),
         ));
     }
 
@@ -165,7 +228,13 @@ final class Container
 
     public function billingService(): BillingService
     {
-        return $this->make('billingService', fn () => new BillingService($this->workspaceRepo()));
+        return $this->make('billingService', fn () => new BillingService(
+            $this->workspaceRepo(),
+            $this->usageMeter(),
+            $this->billingRepo(),
+            $this->paymentGateway(),
+            $this->billingPeriods(),
+        ));
     }
 
     public function notificationService(): NotificationService
@@ -183,6 +252,8 @@ final class Container
         return $this->make('orgService', fn () => new OrgService(
             $this->workspaceRepo(),
             $this->userRepo(),
+            $this->usageMeter(),
+            $this->billingService(),
         ));
     }
 
@@ -191,6 +262,11 @@ final class Container
     public function authMiddleware(): AuthMiddleware
     {
         return $this->make('authMiddleware', fn () => new AuthMiddleware($this->jwt()));
+    }
+
+    public function rateLimiter(): RateLimitMiddleware
+    {
+        return $this->make('rateLimiter', fn () => new RateLimitMiddleware($this->redis()));
     }
 
     /**
@@ -219,6 +295,7 @@ final class Container
             $this->scanService(),
             $this->videoService(),
             $this->assessmentEngine(),
+            $this->scanComparisonService(),
         ));
     }
 
@@ -255,6 +332,11 @@ final class Container
     public function notificationCtrl(): NotificationController
     {
         return $this->make('notificationCtrl', fn () => new NotificationController($this->notificationService()));
+    }
+
+    public function workerCtrl(): WorkerController
+    {
+        return $this->make('workerCtrl', fn () => new WorkerController($this->scanService(), $this->queue()));
     }
 
     public function profileCtrl(): ProfileController

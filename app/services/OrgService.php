@@ -12,7 +12,9 @@ final class OrgService
 {
     public function __construct(
         private readonly WorkspaceRepository $workspaceRepo,
-        private readonly UserRepository $userRepo
+        private readonly UserRepository $userRepo,
+        private readonly UsageMeterService $usageMeter,
+        private readonly BillingService $billing,
     ) {}
 
     /* ── Settings ─────────────────────────────────────────────────────── */
@@ -141,17 +143,22 @@ final class OrgService
 
     public function getSubscription(int $orgId): array
     {
-        $plan = $this->workspaceRepo->activePlan($orgId);
-        $used = $this->workspaceRepo->monthlyUsageCount($orgId);
-        $limit = $plan['scan_limit'] !== null ? (int) $plan['scan_limit'] : null;
+        $snapshot = $this->usageMeter->currentUsage($orgId);
+        $plan = $snapshot['plan'];
+        $usage = $snapshot['usage'];
 
         return [
             'plan'  => $plan,
             'usage' => [
-                'month'     => date('Y-m'),
-                'used'      => $used,
-                'limit'     => $limit,
-                'remaining' => $limit !== null ? max(0, $limit - $used) : null,
+                'month' => $usage['month'],
+                'used' => $usage['used_scans'],
+                'limit' => $plan['scan_limit'],
+                'remaining' => $usage['remaining_scans'],
+                'reserved_scans' => $usage['reserved_scans'],
+                'billed_scans' => $usage['billed_scans'],
+                'billing_cycle' => $usage['billing_cycle'],
+                'period_start' => $usage['period_start'],
+                'period_end' => $usage['period_end'],
             ],
         ];
     }
@@ -160,5 +167,8 @@ final class OrgService
     {
         $this->workspaceRepo->deactivateSubscriptions($orgId);
         $this->workspaceRepo->createSubscription($orgId, $planId);
+
+        // Create the invoice for the new active plan period.
+        $this->billing->ensureCurrentPeriodInvoice($orgId);
     }
 }

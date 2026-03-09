@@ -5,12 +5,11 @@ ob_start();
 ?>
 <div x-data="adminDashboardPage">
 
-  <div class="page-header">
-    <div>
-      <h1 class="page-title">System Dashboard</h1>
-      <p class="page-breadcrumb">Admin / System</p>
-    </div>
-  </div>
+  <?php
+  $headerTitle = 'System Dashboard';
+  $headerBreadcrumb = 'Admin / System';
+  require __DIR__ . '/../partials/page-header.php';
+  ?>
 
   <!-- Loading -->
   <div class="text-center py-5" x-show="loading" x-cloak>
@@ -131,7 +130,7 @@ ob_start();
                 <tr><th>Organization</th><th>Status</th><th>Joined</th></tr>
               </thead>
               <tbody>
-                <template x-for="org in stats.recent_organizations" :key="org.id">
+                <template x-for="org in (stats.recent_organizations || [])" :key="org.id">
                   <tr>
                     <td class="fw-medium" x-text="org.name"></td>
                     <td>
@@ -142,6 +141,9 @@ ob_start();
                     <td class="text-muted" x-text="fmtDate(org.created_at)"></td>
                   </tr>
                 </template>
+                <tr x-show="!stats.recent_organizations || stats.recent_organizations.length === 0" x-cloak>
+                  <td colspan="3" class="text-center text-muted py-4">No organizations yet.</td>
+                </tr>
               </tbody>
             </table>
           </div>
@@ -160,13 +162,16 @@ ob_start();
                 <tr><th>Name</th><th>Organization</th><th>Role</th></tr>
               </thead>
               <tbody>
-                <template x-for="u in stats.recent_users" :key="u.id">
+                <template x-for="u in (stats.recent_users || [])" :key="u.id">
                   <tr>
                     <td class="fw-medium" x-text="u.name"></td>
                     <td class="text-muted text-sm" x-text="u.org_name"></td>
                     <td><span class="badge badge-soft-primary text-capitalize" x-text="u.role"></span></td>
                   </tr>
                 </template>
+                <tr x-show="!stats.recent_users || stats.recent_users.length === 0" x-cloak>
+                  <td colspan="3" class="text-center text-muted py-4">No users yet.</td>
+                </tr>
               </tbody>
             </table>
           </div>

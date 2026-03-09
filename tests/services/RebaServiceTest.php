@@ -31,58 +31,59 @@ final class RebaServiceTest extends TestCase
     public function testLowRiskInputReturnsLowCategory(): void
     {
         $metrics = [
-            'trunk_angle'     => 5,
-            'neck_angle'      => 10,
+            'trunk_angle' => 5,
+            'neck_angle' => 10,
             'upper_arm_angle' => 15,
             'lower_arm_angle' => 80,
-            'wrist_angle'     => 5,
-            'leg_score'       => 1,
-            'load_weight'     => 0,
-            'coupling'        => 'good',
+            'wrist_angle' => 5,
+            'leg_score' => 1,
+            'load_weight' => 0,
+            'coupling' => 'good',
         ];
 
         $result = $this->reba->calculateScore($metrics);
 
-        $this->assertArrayHasKey('score', $result);
-        $this->assertArrayHasKey('risk_level', $result);
-        $this->assertArrayHasKey('normalized_score', $result);
-        $this->assertArrayHasKey('risk_category', $result);
-        $this->assertArrayHasKey('recommendation', $result);
+        foreach (['score', 'risk_level', 'normalized_score', 'risk_category', 'recommendation', 'action_level_code', 'action_level_label', 'algorithm_version'] as $key) {
+            $this->assertArrayHasKey($key, $result);
+        }
 
-        $this->assertLessThanOrEqual(3, $result['score']);
+        $this->assertLessThanOrEqual(4, $result['score']);
         $this->assertSame('low', $result['risk_category']);
+        $this->assertSame('reba_official_v1', $result['algorithm_version']);
     }
 
     public function testHighRiskInputReturnsHighCategory(): void
     {
         $metrics = [
-            'trunk_angle'     => 70,
-            'neck_angle'      => 30,
+            'trunk_angle' => 70,
+            'neck_angle' => 30,
             'upper_arm_angle' => 100,
             'lower_arm_angle' => 40,
-            'wrist_angle'     => 25,
-            'leg_score'       => 2,
-            'load_weight'     => 15,
-            'coupling'        => 'poor',
-            'static_posture'  => true,
-            'repetitive'      => true,
-            'rapid_change'    => true,
+            'wrist_angle' => 25,
+            'leg_score' => 2,
+            'load_weight' => 15,
+            'coupling' => 'poor',
+            'static_posture' => true,
+            'repetitive' => true,
+            'rapid_change' => true,
+            'trunk_twisted' => true,
         ];
 
         $result = $this->reba->calculateScore($metrics);
 
         $this->assertGreaterThanOrEqual(8, $result['score']);
         $this->assertSame('high', $result['risk_category']);
+        $this->assertGreaterThanOrEqual(3, $result['action_level_code']);
     }
 
     public function testScoreIsClampedToValidRange(): void
     {
         $metrics = [
-            'trunk_angle'     => 0,
-            'neck_angle'      => 0,
+            'trunk_angle' => 0,
+            'neck_angle' => 0,
             'upper_arm_angle' => 0,
             'lower_arm_angle' => 80,
-            'wrist_angle'     => 0,
+            'wrist_angle' => 0,
         ];
 
         $result = $this->reba->calculateScore($metrics);
@@ -93,11 +94,11 @@ final class RebaServiceTest extends TestCase
     public function testNormalizedScoreIsPercentage(): void
     {
         $metrics = [
-            'trunk_angle'     => 30,
-            'neck_angle'      => 15,
+            'trunk_angle' => 30,
+            'neck_angle' => 18,
             'upper_arm_angle' => 45,
             'lower_arm_angle' => 80,
-            'wrist_angle'     => 10,
+            'wrist_angle' => 10,
         ];
 
         $result = $this->reba->calculateScore($metrics);
@@ -110,7 +111,7 @@ final class RebaServiceTest extends TestCase
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('REBA requires field: trunk_angle');
 
-        $this->reba->validate(['neck_angle' => 10]); // missing trunk_angle
+        $this->reba->validate(['neck_angle' => 10]);
     }
 
     public function testRiskLevelStrings(): void

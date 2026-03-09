@@ -4,28 +4,28 @@ declare(strict_types=1);
 
 namespace WorkEddy\Middleware;
 
-use Predis\Client;
+use WorkEddy\Core\RedisConnectionFactory;
 use WorkEddy\Helpers\Response;
 
 final class RateLimitMiddleware
 {
     private const DEFAULT_MAX_RPM = 120;
 
+    public function __construct(
+        private readonly RedisConnectionFactory $redis,
+    ) {}
+
     public function handle(string $clientKey): void
     {
         try {
-            $redis  = new Client([
-                'scheme' => 'tcp',
-                'host'   => getenv('REDIS_HOST') ?: '127.0.0.1',
-                'port'   => (int) (getenv('REDIS_PORT') ?: 6379),
-            ]);
+            $client  = $this->redis->connection();
 
             $key     = 'rate:' . $clientKey;
-            $count   = (int) $redis->incr($key);
+            $count   = (int) $client->incr($key);
             $maxRpm  = (int) (getenv('RATE_LIMIT_RPM') ?: self::DEFAULT_MAX_RPM);
 
             if ($count === 1) {
-                $redis->expire($key, 60);
+                $client->expire($key, 60);
             }
 
             if ($count > $maxRpm) {

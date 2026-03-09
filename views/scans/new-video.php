@@ -5,19 +5,12 @@ ob_start();
 ?>
 <div x-data="videoScanPage">
 
-  <!-- Page Header -->
-  <div class="page-header">
-    <div>
-      <h1 class="page-title">New Video Scan</h1>
-      <ol class="breadcrumb mb-0 text-sm">
-        <li class="breadcrumb-item"><a href="/tasks" class="text-decoration-none text-muted">Tasks</a></li>
-        <li class="breadcrumb-item active">Video Scan</li>
-      </ol>
-    </div>
-    <a href="/tasks" class="btn btn-outline-secondary">
-      <i class="bi bi-arrow-left me-1"></i>Tasks
-    </a>
-  </div>
+  <?php
+  $headerTitle = 'New Video Scan';
+  $headerBreadcrumbHtml = '<ol class="breadcrumb mb-0 text-sm"><li class="breadcrumb-item"><a href="/tasks" class="text-decoration-none text-muted">Tasks</a></li><li class="breadcrumb-item active">Video Scan</li></ol>';
+  $headerActionsHtml = '<a href="/tasks" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i>Tasks</a>';
+  require __DIR__ . '/../partials/page-header.php';
+  ?>
 
   <div>
 
@@ -26,6 +19,7 @@ ob_start();
 
     <!-- Upload form (hidden once a scan is submitted) -->
     <div x-show="!scanId">
+      <form @submit.prevent="submit">
 
       <!-- Card: Task & Model -->
       <div class="card mb-4">
@@ -49,7 +43,8 @@ ob_start();
                   <button type="button"
                           class="btn btn-sm"
                           :class="model === m.value ? 'btn-primary' : 'btn-outline-secondary'"
-                          @click="model = m.value"
+                          @click="if (!parentScanId) model = m.value"
+                          :disabled="parentScanId != null"
                           x-text="m.label"></button>
                 </template>
               </div>
@@ -99,13 +94,15 @@ ob_start();
 
       <!-- Submit -->
       <div class="d-flex gap-2">
-        <button class="btn btn-primary" @click="submit" :disabled="uploading">
+        <button type="submit" class="btn btn-primary" :disabled="uploading">
           <span class="spinner-border spinner-border-sm me-2" x-show="uploading" x-cloak></span>
           <i class="bi bi-cloud-upload me-1" x-show="!uploading"></i>
           <span x-text="uploading ? 'Uploading…' : 'Upload & Analyse'"></span>
         </button>
         <a href="/tasks" class="btn btn-light">Cancel</a>
       </div>
+
+      </form>
 
     </div><!-- /upload form -->
 
@@ -208,7 +205,7 @@ ob_start();
         <a :href="'/scans/' + scanId" class="btn btn-outline-primary" x-show="scan && scan.status === 'completed'">
           <i class="bi bi-bar-chart me-1"></i>Full Results
         </a>
-        <button class="btn btn-primary" @click="scanId = null; scan = null; resultPending = false; scanInvalid = false; error = ''; measurements = []; recommendation = '';">
+        <button class="btn btn-primary" @click="resetScanFlow()">
           <i class="bi bi-plus-circle me-1"></i>New Scan
         </button>
       </div>

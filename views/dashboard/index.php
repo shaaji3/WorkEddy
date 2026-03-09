@@ -5,20 +5,18 @@ ob_start();
 ?>
 <div x-data="dashboardPage">
 
-  <div class="page-header">
-    <div>
-      <h1 class="page-title">Dashboard</h1>
-      <p class="page-breadcrumb">Home / Dashboard</p>
-    </div>
-    <div class="d-flex gap-2">
+  <?php
+  $headerTitle = 'Dashboard';
+  $headerBreadcrumb = 'Home / Dashboard';
+  $headerActionsHtml = '
       <a href="/scans/new-video" class="btn btn-outline-primary">
         <i class="bi bi-camera-video me-1"></i>Video Scan
       </a>
       <a href="/scans/new-manual" class="btn btn-primary">
         <i class="bi bi-plus-lg me-1"></i>New Scan
-      </a>
-    </div>
-  </div>
+      </a>';
+  require __DIR__ . '/../partials/page-header.php';
+  ?>
 
   <!-- KPI Cards -->
   <div class="row g-4 mb-4">

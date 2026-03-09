@@ -5,19 +5,12 @@ ob_start();
 ?>
 <div x-data="scanComparePage">
 
-  <div class="page-header">
-    <div>
-      <h1 class="page-title">Scan Comparison</h1>
-      <ol class="breadcrumb mb-0 text-sm">
-        <li class="breadcrumb-item"><a href="/tasks" class="text-decoration-none text-muted">Tasks</a></li>
-        <li class="breadcrumb-item"><a :href="'/scans/' + scanId" class="text-decoration-none text-muted">Scan</a></li>
-        <li class="breadcrumb-item active">Compare</li>
-      </ol>
-    </div>
-    <a :href="'/scans/' + scanId" class="btn btn-outline-secondary">
-      <i class="bi bi-arrow-left me-1"></i>Back to Scan
-    </a>
-  </div>
+  <?php
+  $headerTitle = 'Scan Comparison';
+  $headerBreadcrumbHtml = '<ol class="breadcrumb mb-0 text-sm"><li class="breadcrumb-item"><a href="/tasks" class="text-decoration-none text-muted">Tasks</a></li><li class="breadcrumb-item"><a :href="\'/scans/\' + scanId" class="text-decoration-none text-muted">Scan</a></li><li class="breadcrumb-item active">Compare</li></ol>';
+  $headerActionsHtml = '<a :href="\'/scans/\' + scanId" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i>Back to Scan</a>';
+  require __DIR__ . '/../partials/page-header.php';
+  ?>
 
   <!-- Loading -->
   <div class="text-center py-5" x-show="loading" x-cloak>
@@ -25,6 +18,15 @@ ob_start();
   </div>
 
   <div class="alert alert-danger" x-show="error && !loading" x-cloak x-text="error"></div>
+
+  <div class="empty-state" x-show="!loading && !error && noComparisonData" x-cloak>
+    <div class="empty-state-icon"><i class="bi bi-bar-chart"></i></div>
+    <h6>No comparison baseline found</h6>
+    <p>This scan does not have a linked previous scan yet. Choose two scans in advanced comparison instead.</p>
+    <a href="/scans/compare" class="btn btn-primary btn-sm">
+      <i class="bi bi-sliders me-1"></i>Open Advanced Compare
+    </a>
+  </div>
 
   <!-- Comparison content -->
   <div x-show="current && parent && !loading" x-cloak>

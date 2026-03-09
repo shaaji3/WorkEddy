@@ -10,35 +10,13 @@ services:
     depends_on:
       - api
 
-  # ── One-shot: run migrations then seed (exits when done) ──────────────────
-  migrate:
-    build:
-      context: .
-      dockerfile: infrastructure/docker/php.dockerfile
-    working_dir: /var/www/html
-    volumes:
-      - .:/var/www/html
-      - vendor_data:/var/www/html/vendor
-      - storage_data:/storage
-    env_file: .env
-    environment:
-      APP_ENV: local
-      DB_HOST: mysql
-      DB_PORT: 3306
-    command:
-      - sh
-      - -c
-      - "mkdir -p /storage/uploads/videos /storage/uploads/frames /storage/uploads/processed /storage/uploads/reports /storage/temp /storage/logs /storage/exports && chmod -R 777 /storage && php scripts/migrate.php migrate && php scripts/seed.php run"
-    depends_on:
-      mysql:
-        condition: service_healthy
-    restart: "no"
-
   api:
+    image: workeddy-app:local
     build:
       context: .
-      dockerfile: infrastructure/docker/php.dockerfile
+      dockerfile: Dockerfile
     working_dir: /var/www/html
+    command: ["php-fpm", "-F"]
     volumes:
       - .:/var/www/html                       # live-reload project code
       - vendor_data:/var/www/html/vendor      # preserve image-built vendor (not overwritten by host mount)
@@ -55,8 +33,30 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
-      migrate:
-        condition: service_completed_successfully
+    restart: unless-stopped
+
+  seed:
+    image: workeddy-app:local
+    working_dir: /var/www/html
+    volumes:
+      - .:/var/www/html
+      - vendor_data:/var/www/html/vendor
+      - storage_data:/storage
+    env_file: .env
+    environment:
+      APP_ENV: local
+      DB_HOST: mysql
+      DB_PORT: 3306
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    command: ["php", "scripts/seed.php", "run"]
+    depends_on:
+      mysql:
+        condition: service_healthy
+      api:
+        condition: service_started
+    profiles:
+      - ops
 
   worker:
     build:
@@ -68,15 +68,11 @@ services:
       - storage_data:/storage                 # same volume as api service
     env_file: .env
     environment:
-      DB_HOST: mysql
-      DB_PORT: 3306
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
+      WORKER_API_BASE_URL: http://nginx
     depends_on:
-      mysql:
-        condition: service_healthy
-      redis:
+      nginx:
         condition: service_started
+    restart: unless-stopped
 
   mysql:
     image: mysql:8.4
@@ -90,7 +86,7 @@ services:
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "workeddy", "-pworkeddy"]
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u$${MYSQL_USER} -p$${MYSQL_PASSWORD}"]
       interval: 10s
       timeout: 5s
       retries: 6
@@ -108,4 +104,3 @@ volumes:
   mysql_data:
   vendor_data:    # PHP Composer dependencies (built inside image, not overridden by host)
   storage_data:   # Shared upload/processed file storage (api writes, worker reads)
-

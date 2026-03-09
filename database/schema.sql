@@ -84,7 +84,7 @@ CREATE TABLE IF NOT EXISTS scans (
     CONSTRAINT fk_scans_parent FOREIGN KEY (parent_scan_id)  REFERENCES scans(id)         ON DELETE SET NULL
 );
 
--- Unified scan metrics table – stores posture / lifting variables for any model.
+-- Unified scan metrics table - stores posture / lifting variables for any model.
 -- Columns are nullable because different models use different subsets.
 CREATE TABLE IF NOT EXISTS scan_metrics (
     id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -112,14 +112,15 @@ CREATE TABLE IF NOT EXISTS scan_metrics (
     CONSTRAINT fk_metrics_scan FOREIGN KEY (scan_id) REFERENCES scans(id) ON DELETE CASCADE
 );
 
--- Separate results table – stores computed score per assessment
+-- Separate results table - stores computed score per assessment
 CREATE TABLE IF NOT EXISTS scan_results (
     id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     scan_id         BIGINT UNSIGNED NOT NULL,
     model           ENUM('rula','reba','niosh') NOT NULL,
     score           DECIMAL(10,2) NOT NULL,
-    risk_level      VARCHAR(50)   NOT NULL,
+    risk_level      VARCHAR(191)  NOT NULL,
     recommendation  TEXT          NULL,
+    algorithm_version VARCHAR(64) NOT NULL DEFAULT 'legacy_v1',
     created_at      DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_results_scan FOREIGN KEY (scan_id) REFERENCES scans(id) ON DELETE CASCADE
 );
@@ -168,7 +169,31 @@ CREATE TABLE IF NOT EXISTS usage_records (
     usage_type      ENUM('manual_scan','video_scan') NOT NULL,
     created_at      DATETIME        NOT NULL,
     CONSTRAINT fk_usage_org  FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
-    CONSTRAINT fk_usage_scan FOREIGN KEY (scan_id)         REFERENCES scans(id)         ON DELETE CASCADE
+    CONSTRAINT fk_usage_scan FOREIGN KEY (scan_id)         REFERENCES scans(id)         ON DELETE CASCADE,
+    UNIQUE KEY uniq_usage_org_scan_type (organization_id, scan_id, usage_type),
+    INDEX idx_usage_org_created (organization_id, created_at),
+    INDEX idx_usage_created (created_at)
+);
+
+CREATE TABLE IF NOT EXISTS usage_reservations (
+    id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    organization_id BIGINT UNSIGNED NOT NULL,
+    scan_id         BIGINT UNSIGNED NOT NULL,
+    usage_type      ENUM('video_scan') NOT NULL,
+    created_at      DATETIME        NOT NULL,
+    CONSTRAINT fk_usage_res_org  FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+    CONSTRAINT fk_usage_res_scan FOREIGN KEY (scan_id)         REFERENCES scans(id)         ON DELETE CASCADE,
+    UNIQUE KEY uniq_usage_res_org_scan_type (organization_id, scan_id, usage_type),
+    INDEX idx_usage_res_org_created (organization_id, created_at),
+    INDEX idx_usage_res_created (created_at)
+);
+
+CREATE TABLE IF NOT EXISTS queue_jobs (
+    id          BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    queue_name  VARCHAR(100)    NOT NULL,
+    payload     JSON            NOT NULL,
+    created_at  DATETIME        NOT NULL,
+    INDEX idx_queue_jobs_queue_id (queue_name, id)
 );
 
 CREATE TABLE IF NOT EXISTS notifications (
@@ -186,6 +211,46 @@ CREATE TABLE IF NOT EXISTS notifications (
     INDEX idx_notifications_org_read (organization_id, is_read, created_at DESC)
 );
 
+CREATE TABLE IF NOT EXISTS invoices (
+    id                BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    organization_id   BIGINT UNSIGNED NOT NULL,
+    subscription_id   BIGINT UNSIGNED NOT NULL,
+    plan_id           BIGINT UNSIGNED NOT NULL,
+    billing_cycle     VARCHAR(50)     NOT NULL,
+    period_start      DATETIME        NOT NULL,
+    period_end        DATETIME        NOT NULL,
+    amount            DECIMAL(10,2)   NOT NULL,
+    currency          VARCHAR(10)     NOT NULL DEFAULT 'USD',
+    status            ENUM('pending','paid','failed') NOT NULL DEFAULT 'pending',
+    gateway           VARCHAR(50)     NULL,
+    provider_reference VARCHAR(191)   NULL,
+    metadata          JSON            NULL,
+    created_at        DATETIME        NOT NULL,
+    paid_at           DATETIME        NULL,
+    CONSTRAINT fk_invoices_org  FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+    CONSTRAINT fk_invoices_sub  FOREIGN KEY (subscription_id) REFERENCES subscriptions(id) ON DELETE CASCADE,
+    CONSTRAINT fk_invoices_plan FOREIGN KEY (plan_id) REFERENCES plans(id) ON DELETE RESTRICT,
+    UNIQUE KEY uniq_invoice_org_plan_period (organization_id, plan_id, period_start, period_end),
+    INDEX idx_invoices_org_created (organization_id, created_at),
+    INDEX idx_invoices_status (status)
+);
+
+CREATE TABLE IF NOT EXISTS payment_transactions (
+    id                BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    invoice_id        BIGINT UNSIGNED NOT NULL,
+    organization_id   BIGINT UNSIGNED NOT NULL,
+    gateway           VARCHAR(50)     NOT NULL,
+    status            ENUM('pending','paid','failed') NOT NULL,
+    amount            DECIMAL(10,2)   NOT NULL,
+    currency          VARCHAR(10)     NOT NULL DEFAULT 'USD',
+    provider_reference VARCHAR(191)   NULL,
+    response_payload  JSON            NULL,
+    created_at        DATETIME        NOT NULL,
+    CONSTRAINT fk_pay_txn_invoice FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE,
+    CONSTRAINT fk_pay_txn_org     FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+    INDEX idx_pay_txn_invoice (invoice_id, created_at),
+    INDEX idx_pay_txn_org (organization_id, created_at)
+);
 
 -- Global platform settings (key-value, used by super admin)
 CREATE TABLE IF NOT EXISTS system_settings (

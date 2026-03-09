@@ -21,12 +21,20 @@ final class Auth
     /**
      * Throw 403 if the authenticated user does not have one of the allowed roles.
      *
+     * super_admin is treated as a platform override role.
+     *
      * @param string[] $roles
      */
     public static function requireRoles(array $claims, array $roles): void
     {
         self::requireClaims($claims);
-        if (!in_array($claims['role'] ?? '', $roles, true)) {
+
+        $role = (string) ($claims['role'] ?? '');
+        if ($role === 'super_admin') {
+            return;
+        }
+
+        if (!in_array($role, $roles, true)) {
             throw new RuntimeException('Forbidden: insufficient role');
         }
     }
