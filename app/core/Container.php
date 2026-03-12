@@ -11,6 +11,7 @@ use WorkEddy\Controllers\AdminController;
 use WorkEddy\Controllers\AuthController;
 use WorkEddy\Controllers\BillingController;
 use WorkEddy\Controllers\DashboardController;
+use WorkEddy\Controllers\LeadingIndicatorController;
 use WorkEddy\Controllers\NotificationController;
 use WorkEddy\Controllers\ObserverController;
 use WorkEddy\Controllers\OrgController;
@@ -23,6 +24,8 @@ use WorkEddy\Middleware\AuthMiddleware;
 use WorkEddy\Middleware\RateLimitMiddleware;
 use WorkEddy\Repositories\AdminRepository;
 use WorkEddy\Repositories\BillingRepository;
+use WorkEddy\Repositories\ControlRecommendationRepository;
+use WorkEddy\Repositories\LeadingIndicatorRepository;
 use WorkEddy\Repositories\NotificationRepository;
 use WorkEddy\Repositories\ScanRepository;
 use WorkEddy\Repositories\TaskRepository;
@@ -32,6 +35,7 @@ use WorkEddy\Services\AdminService;
 use WorkEddy\Services\AuthService;
 use WorkEddy\Services\BillingPeriodService;
 use WorkEddy\Services\BillingService;
+use WorkEddy\Services\ControlRecommendationService;
 use WorkEddy\Services\Cache\ArrayCacheDriver;
 use WorkEddy\Services\Cache\FileCacheDriver;
 use WorkEddy\Services\Cache\RedisCacheDriver;
@@ -39,6 +43,8 @@ use WorkEddy\Services\DashboardService;
 use WorkEddy\Services\EmailService;
 use WorkEddy\Services\Ergonomics\AssessmentEngine;
 use WorkEddy\Services\JwtService;
+use WorkEddy\Services\LeadingIndicatorService;
+use WorkEddy\Services\ImprovementProofService;
 use WorkEddy\Services\NotificationService;
 use WorkEddy\Services\ObserverService;
 use WorkEddy\Services\OrgService;
@@ -112,6 +118,16 @@ final class Container
         return $this->make('notificationRepo', fn () => new NotificationRepository($this->db()));
     }
 
+    public function leadingIndicatorRepo(): LeadingIndicatorRepository
+    {
+        return $this->make('leadingIndicatorRepo', fn () => new LeadingIndicatorRepository($this->db()));
+    }
+
+    public function controlRecommendationRepo(): ControlRecommendationRepository
+    {
+        return $this->make('controlRecommendationRepo', fn () => new ControlRecommendationRepository($this->db()));
+    }
+
     // ─── Services ─────────────────────────────────────────────────────
 
     public function jwt(): JwtService
@@ -170,9 +186,24 @@ final class Container
         return $this->make('videoService', fn () => new VideoProcessingService());
     }
 
+    public function controlRecommendationEngine(): ControlRecommendationService
+    {
+        return $this->make('controlRecommendationEngine', fn () => new ControlRecommendationService());
+    }
+
+    public function improvementProofService(): ImprovementProofService
+    {
+        return $this->make('improvementProofService', fn () => new ImprovementProofService());
+    }
+
     public function emailService(): EmailService
     {
         return $this->make('emailService', fn () => new EmailService());
+    }
+
+    public function leadingIndicatorService(): LeadingIndicatorService
+    {
+        return $this->make('leadingIndicatorService', fn () => new LeadingIndicatorService($this->leadingIndicatorRepo()));
     }
 
     public function authService(): AuthService
@@ -205,6 +236,11 @@ final class Container
             $this->queue(),
             $this->cache(),
             (int) ((require __DIR__ . '/../config/cache.php')['ttl'] ?? 300),
+            $this->workspaceRepo(),
+            $this->controlRecommendationRepo(),
+            $this->controlRecommendationEngine(),
+            $this->improvementProofService(),
+            $this->videoService(),
         ));
     }
 
@@ -213,6 +249,7 @@ final class Container
         return $this->make('scanComparisonService', fn () => new ScanComparisonService(
             $this->scanRepo(),
             $this->assessmentEngine(),
+            $this->improvementProofService(),
         ));
     }
 
@@ -342,6 +379,11 @@ final class Container
     public function profileCtrl(): ProfileController
     {
         return $this->make('profileCtrl', fn () => new ProfileController($this->userService()));
+    }
+
+    public function leadingIndicatorCtrl(): LeadingIndicatorController
+    {
+        return $this->make('leadingIndicatorCtrl', fn () => new LeadingIndicatorController($this->leadingIndicatorService()));
     }
 
     // ─── Internal ─────────────────────────────────────────────────────

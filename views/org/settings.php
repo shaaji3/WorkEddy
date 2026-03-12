@@ -199,6 +199,63 @@ ob_start();
       </div>
     </div>
 
+    <!-- Recommendation Policy -->
+    <div class="card mt-4">
+      <div class="card-header">
+        <h6 class="card-title mb-0"><i class="bi bi-sliders me-2"></i>Recommendation Policy (Controls Ranking)</h6>
+      </div>
+      <div class="card-body">
+        <p class="text-muted text-sm mb-3">
+          Tune how prescriptive controls are prioritized for your organization.
+        </p>
+
+        <div class="row g-3">
+          <div class="col-md-4">
+            <label class="form-label" for="rpCostPenalty">Cost Penalty Factor</label>
+            <input class="form-control" id="rpCostPenalty" type="number" step="0.1" min="0" max="20"
+                   x-model.number="form.recommendation_policy.ranking.cost_penalty_factor">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="rpImpactPenalty">Throughput Impact Penalty</label>
+            <input class="form-control" id="rpImpactPenalty" type="number" step="0.1" min="0" max="20"
+                   x-model.number="form.recommendation_policy.ranking.impact_penalty_factor">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="rpReductionFactor">Risk Reduction Factor</label>
+            <input class="form-control" id="rpReductionFactor" type="number" step="0.1" min="0" max="20"
+                   x-model.number="form.recommendation_policy.ranking.reduction_factor">
+          </div>
+
+          <div class="col-md-4">
+            <label class="form-label" for="rpTrunkHigh">Trunk Flexion High Threshold (°)</label>
+            <input class="form-control" id="rpTrunkHigh" type="number" step="1" min="0" max="180"
+                   x-model.number="form.recommendation_policy.thresholds.trunk_flexion_high">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="rpTrunkModerate">Trunk Flexion Moderate Threshold (°)</label>
+            <input class="form-control" id="rpTrunkModerate" type="number" step="1" min="0" max="180"
+                   x-model.number="form.recommendation_policy.thresholds.trunk_flexion_moderate">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="rpUpperArmHigh">Upper Arm Elevation High Threshold (°)</label>
+            <input class="form-control" id="rpUpperArmHigh" type="number" step="1" min="0" max="180"
+                   x-model.number="form.recommendation_policy.thresholds.upper_arm_elevation_high">
+          </div>
+
+          <div class="col-md-4">
+            <label class="form-label" for="rpRepetitionHigh">High Repetition Threshold</label>
+            <input class="form-control" id="rpRepetitionHigh" type="number" step="1" min="0" max="1000"
+                   x-model.number="form.recommendation_policy.thresholds.repetition_high">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="rpLiftingLoad">Lifting Load Threshold (kg)</label>
+            <input class="form-control" id="rpLiftingLoad" type="number" step="0.1" min="0" max="200"
+                   x-model.number="form.recommendation_policy.thresholds.lifting_load">
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Account Details -->
     <div class="card mt-4">
       <div class="card-header">

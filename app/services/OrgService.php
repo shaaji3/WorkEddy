@@ -23,6 +23,7 @@ final class OrgService
     private const SETTINGS_KEYS = [
         'industry', 'size', 'website', 'theme_color',
         'video_retention_days', 'auto_delete_video', 'default_model',
+        'recommendation_policy',
     ];
 
     public function getSettings(int $orgId): array
@@ -73,7 +74,7 @@ final class OrgService
         $changed = false;
         foreach (self::SETTINGS_KEYS as $key) {
             if (array_key_exists($key, $data)) {
-                $current[$key] = $data[$key];
+                $current[$key] = $this->normalizeSetting($key, $data[$key]);
                 $changed = true;
             }
         }
@@ -170,5 +171,89 @@ final class OrgService
 
         // Create the invoice for the new active plan period.
         $this->billing->ensureCurrentPeriodInvoice($orgId);
+    }
+
+    private function normalizeSetting(string $key, mixed $value): mixed
+    {
+        return match ($key) {
+            'default_model' => $this->normalizeDefaultModel($value),
+            'video_retention_days' => $this->normalizeRetentionDays($value),
+            'auto_delete_video' => $this->toBool($value),
+            'recommendation_policy' => $this->normalizeRecommendationPolicy($value),
+            default => $value,
+        };
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function normalizeRecommendationPolicy(mixed $value): array
+    {
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $thresholds = is_array($value['thresholds'] ?? null) ? $value['thresholds'] : [];
+        $riskMultipliers = is_array($value['risk_multipliers'] ?? null) ? $value['risk_multipliers'] : [];
+        $ranking = is_array($value['ranking'] ?? null) ? $value['ranking'] : [];
+        $catalog = is_array($value['catalog'] ?? null) ? $value['catalog'] : [];
+
+        return [
+            'thresholds' => [
+                'trunk_flexion_high' => isset($thresholds['trunk_flexion_high']) ? (float) $thresholds['trunk_flexion_high'] : 45.0,
+                'trunk_flexion_moderate' => isset($thresholds['trunk_flexion_moderate']) ? (float) $thresholds['trunk_flexion_moderate'] : 25.0,
+                'upper_arm_elevation_high' => isset($thresholds['upper_arm_elevation_high']) ? (float) $thresholds['upper_arm_elevation_high'] : 60.0,
+                'repetition_high' => isset($thresholds['repetition_high']) ? (int) $thresholds['repetition_high'] : 20,
+                'lifting_load' => isset($thresholds['lifting_load']) ? (float) $thresholds['lifting_load'] : 12.0,
+            ],
+            'risk_multipliers' => [
+                'high' => isset($riskMultipliers['high']) ? (float) $riskMultipliers['high'] : 1.15,
+                'moderate' => isset($riskMultipliers['moderate']) ? (float) $riskMultipliers['moderate'] : 1.0,
+                'low' => isset($riskMultipliers['low']) ? (float) $riskMultipliers['low'] : 0.9,
+            ],
+            'ranking' => [
+                'cost_penalty_factor' => isset($ranking['cost_penalty_factor']) ? (float) $ranking['cost_penalty_factor'] : 1.1,
+                'impact_penalty_factor' => isset($ranking['impact_penalty_factor']) ? (float) $ranking['impact_penalty_factor'] : 0.8,
+                'reduction_factor' => isset($ranking['reduction_factor']) ? (float) $ranking['reduction_factor'] : 1.0,
+                'cost_weight' => is_array($ranking['cost_weight'] ?? null) ? $ranking['cost_weight'] : ['low' => 1, 'medium' => 3, 'high' => 6],
+                'impact_weight' => is_array($ranking['impact_weight'] ?? null) ? $ranking['impact_weight'] : ['low' => 1, 'medium' => 3, 'high' => 5],
+                'hierarchy_bonus' => is_array($ranking['hierarchy_bonus'] ?? null) ? $ranking['hierarchy_bonus'] : ['elimination' => 7, 'substitution' => 5, 'engineering' => 4, 'administrative' => 2, 'ppe' => 0],
+            ],
+            'catalog' => $catalog,
+        ];
+    }
+
+    private function normalizeDefaultModel(mixed $value): ?string
+    {
+        $model = strtolower(trim((string) $value));
+        if ($model === '') {
+            return null;
+        }
+
+        return in_array($model, ['rula', 'reba', 'niosh'], true) ? $model : null;
+    }
+
+    private function normalizeRetentionDays(mixed $value): int
+    {
+        $days = (int) $value;
+        if ($days < 0) {
+            return 30;
+        }
+
+        return min(3650, $days);
+    }
+
+    private function toBool(mixed $value): bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        if (is_numeric($value)) {
+            return ((int) $value) === 1;
+        }
+
+        $normalized = strtolower(trim((string) $value));
+        return in_array($normalized, ['1', 'true', 'yes', 'on'], true);
     }
 }

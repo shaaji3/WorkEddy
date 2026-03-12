@@ -251,6 +251,33 @@ ob_start();
         </ul>
       </div>
 
+      <div class="card mt-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h6 class="mb-0 fw-semibold">Leading Indicators (30d)</h6>
+          <a href="/org/settings" class="text-decoration-none text-sm">Settings</a>
+        </div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-6">
+              <p class="text-muted text-xs text-uppercase mb-1">Check-ins</p>
+              <p class="h5 mb-0" x-text="leadingIndicators.total_checkins_30d ?? 0"></p>
+            </div>
+            <div class="col-6">
+              <p class="text-muted text-xs text-uppercase mb-1">Avg Discomfort</p>
+              <p class="h5 mb-0" x-text="leadingIndicators.avg_discomfort_30d != null ? Number(leadingIndicators.avg_discomfort_30d).toFixed(2) : '—'"></p>
+            </div>
+            <div class="col-6">
+              <p class="text-muted text-xs text-uppercase mb-1">Avg Fatigue</p>
+              <p class="h5 mb-0" x-text="leadingIndicators.avg_fatigue_30d != null ? Number(leadingIndicators.avg_fatigue_30d).toFixed(2) : '—'"></p>
+            </div>
+            <div class="col-6">
+              <p class="text-muted text-xs text-uppercase mb-1">High Psychosocial</p>
+              <p class="h5 mb-0" x-text="leadingIndicators.high_psychosocial_count_30d ?? 0"></p>
+            </div>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 

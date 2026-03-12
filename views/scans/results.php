@@ -42,20 +42,6 @@ ob_start();
 
   <div class="alert alert-danger" x-show="error && !loading" x-cloak x-text="error"></div>
 
-  <!-- Video Preview -->
-  <div class="card mb-4" x-show="scan && scan.video_path && !loading" x-cloak>
-    <div class="card-header d-flex align-items-center gap-2">
-      <i class="bi bi-camera-video text-primary"></i>
-      <h6 class="mb-0 fw-semibold">Uploaded Video</h6>
-    </div>
-    <div class="card-body p-0">
-      <video class="w-100 rounded-bottom" style="max-height:400px;background:#000" controls preload="metadata"
-             :src="'/storage/videos/' + scan.video_path.split('/').pop()">
-        Your browser does not support video playback.
-      </video>
-    </div>
-  </div>
-
   <!-- Results -->
   <div x-show="scan && !loading && !scanInvalid" x-cloak>
 
@@ -67,9 +53,9 @@ ob_start();
           <div class="card-body text-center py-4">
             <p class="section-title mb-2">Risk Score</p>
             <div class="display-4 fw-bold mb-2" x-text="score" :style="'color:' + barColor"></div>
-            <span class="badge px-3 py-2 fs-6"
-                  :class="riskLevel === 'high' ? 'badge-soft-danger'
-                        : riskLevel === 'moderate' ? 'badge-soft-warning'
+            <span class="badge px-3 py-2 text-wrap fs-10"
+              :class="riskLevelCategory === 'high' ? 'badge-soft-danger'
+                : riskLevelCategory === 'moderate' ? 'badge-soft-warning'
                         : 'badge-soft-success'"
                   x-text="riskLevel"></span>
             <div class="risk-meter mt-4">
@@ -118,6 +104,47 @@ ob_start();
       </div>
     </div>
 
+    <!-- Ranked Controls -->
+    <div class="card mb-4" x-show="controls && controls.length > 0" x-cloak>
+      <div class="card-header d-flex align-items-center gap-2">
+        <i class="bi bi-list-check text-primary"></i>
+        <h6 class="mb-0 fw-semibold">Prescriptive Controls (Ranked)</h6>
+      </div>
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead>
+            <tr>
+              <th>#</th>
+              <th>Control</th>
+              <th>Hierarchy</th>
+              <th>Expected Risk Reduction</th>
+              <th>Cost</th>
+              <th>Deploy</th>
+              <th>Throughput Impact</th>
+            </tr>
+            </thead>
+            <tbody>
+            <template x-for="c in controls" :key="c.id || c.rank_order">
+              <tr>
+                <td><span class="badge badge-soft-primary" x-text="c.rank_order"></span></td>
+                <td>
+                  <div class="fw-semibold" x-text="c.title"></div>
+                  <div class="text-muted text-sm" x-text="c.rationale"></div>
+                </td>
+                <td><span class="badge badge-soft-secondary text-capitalize" x-text="c.hierarchy_level"></span></td>
+                <td x-text="Number(c.expected_risk_reduction_pct).toFixed(1) + '%' "></td>
+                <td class="text-capitalize" x-text="c.implementation_cost"></td>
+                <td x-text="c.time_to_deploy_days + 'd'"></td>
+                <td class="text-capitalize" x-text="c.throughput_impact"></td>
+              </tr>
+            </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
     <!-- Measurements -->
     <div class="card" x-show="measurements.length > 0" x-cloak>
       <div class="card-header"><h6 class="mb-0 fw-semibold">Measurements</h6></div>
@@ -135,6 +162,22 @@ ob_start();
       </div>
     </div>
 
+  </div>
+
+    <!-- Video Preview -->
+  <div class="card mb-4" x-show="scan && scan.video_path && !loading" x-cloak>
+    <div class="card-header d-flex align-items-center gap-2">
+      <i class="bi bi-camera-video text-primary"></i>
+      <h6 class="mb-0 fw-semibold">Uploaded Video</h6>
+    </div>
+    <div class="card-body p-0">
+      <video class="w-100 rounded-bottom" style="max-height:400px;background:#000" controls preload="metadata"
+             :src="(scan && scan.video_path)
+                ? ('/storage/videos/' + String(scan.video_path).split('/').pop())
+                : ''">
+        Your browser does not support video playback.
+      </video>
+    </div>
   </div>
 </div>
 <?php

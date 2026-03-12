@@ -46,6 +46,7 @@ $content    = $content    ?? '';
       $coreNav = [
         'dashboard' => ['/dashboard',        'bi-grid-1x2',  'Dashboard'],
         'tasks'     => ['/tasks',            'bi-list-task', 'Tasks'],
+        'leading-indicators' => ['/leading-indicators/check-in', 'bi-heart-pulse', 'Wellbeing Check-in'],
         'scans'     => ['',                  'bi-upc-scan',  'Scans'],
       ];
       $scansActive = in_array($activePage, ['scans', 'scans-video', 'scans-compare']);

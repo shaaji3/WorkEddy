@@ -79,6 +79,11 @@ return static function (Container $c): Closure {
         // ── Dashboard ─────────────────────────────────────────────────
         $r->addRoute('GET', '/dashboard', fn ($v, $b) => $c->dashCtrl()->show($c->auth()));
 
+        // ── Continuous leading indicators (Phase 2) ─────────────────
+        $r->addRoute('POST', '/leading-indicators', fn ($v, $b) => $c->leadingIndicatorCtrl()->submit($c->auth(), $b));
+        $r->addRoute('GET', '/leading-indicators/mine', fn ($v, $b) => $c->leadingIndicatorCtrl()->mine($c->auth()));
+        $r->addRoute('GET', '/leading-indicators/summary', fn ($v, $b) => $c->leadingIndicatorCtrl()->summary($c->auth()));
+
         // ── Notifications ─────────────────────────────────────────────
         $r->addRoute('GET',  '/notifications',                  fn ($v, $b) => $c->notificationCtrl()->index($c->auth()));
         $r->addRoute('GET',  '/notifications/unread-count',     fn ($v, $b) => $c->notificationCtrl()->unreadCount($c->auth()));

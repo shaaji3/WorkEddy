@@ -36,6 +36,27 @@ final class ScanRepository
         );
         $row['metrics'] = $metrics ?: [];
 
+        $controls = $this->db->fetchAllAssociative(
+            'SELECT id, scan_id, rank_order, hierarchy_level, control_code, title,
+                    expected_risk_reduction_pct, implementation_cost, time_to_deploy_days,
+                    throughput_impact, rationale, evidence_json, recommendation_engine_version, created_at
+             FROM scan_control_recommendations
+             WHERE scan_id = :scan_id
+             ORDER BY rank_order ASC, id ASC',
+            ['scan_id' => $scanId]
+        );
+        $row['controls'] = is_array($controls) ? $controls : [];
+
+        foreach ($row['controls'] as &$control) {
+            $decoded = [];
+            if (isset($control['evidence_json']) && is_string($control['evidence_json']) && $control['evidence_json'] !== '') {
+                $decoded = json_decode($control['evidence_json'], true) ?: [];
+            }
+            $control['evidence'] = $decoded;
+            unset($control['evidence_json']);
+        }
+        unset($control);
+
         return $row;
     }
 
@@ -162,7 +183,7 @@ final class ScanRepository
     public function findWorkerScan(int $organizationId, int $scanId): array
     {
         $row = $this->db->fetchAssociative(
-            'SELECT id, organization_id, scan_type, model, status
+            'SELECT id, organization_id, scan_type, model, status, video_path
              FROM scans
              WHERE organization_id = :org_id AND id = :id
              LIMIT 1',
@@ -174,6 +195,20 @@ final class ScanRepository
         }
 
         return $row;
+    }
+
+    public function clearVideoPath(int $organizationId, int $scanId): void
+    {
+        $this->db->executeStatement(
+            'UPDATE scans
+             SET video_path = NULL
+             WHERE organization_id = :org_id
+               AND id = :scan_id',
+            [
+                'org_id' => $organizationId,
+                'scan_id' => $scanId,
+            ]
+        );
     }
 
     public function completeVideoProcessing(int $organizationId, int $scanId, string $model, array $score, array $metrics): void

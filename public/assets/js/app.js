@@ -342,6 +342,13 @@ document.addEventListener('alpine:init', () => {
   /* ── Dashboard page ───────────────────────────────────────────────────── */
   Alpine.data('dashboardPage', () => ({
     totalScans: '–', highRisk: '–', moderateRisk: '–', avgScore: '–',
+    leadingIndicators: {
+      total_checkins_30d: 0,
+      avg_discomfort_30d: null,
+      avg_fatigue_30d: null,
+      avg_micro_breaks_30d: null,
+      high_psychosocial_count_30d: 0,
+    },
     recentScans: [], topTasks: [], weeklyTrends: [], deptHeatmap: [],
     loading: true, error: '',
     async init() {
@@ -355,6 +362,7 @@ document.addEventListener('alpine:init', () => {
         this.topTasks     = d.top_tasks ?? [];
         this.weeklyTrends = d.weekly_trends ?? [];
         this.deptHeatmap  = d.department_heatmap ?? [];
+        this.leadingIndicators = d.leading_indicators ?? this.leadingIndicators;
         this.$nextTick(() => this.renderWeeklyChart());
       } catch (e) { this.error = e.message; }
       finally { this.loading = false; }
@@ -504,7 +512,7 @@ document.addEventListener('alpine:init', () => {
     // Inline results state
     scanId: null, scan: null, resultLoading: false, resultPending: false,
     scanInvalid: false, errorMessage: '',
-    measurements: [], recommendation: '',
+    measurements: [], recommendation: '', controls: [],
     _pollTimer: null,
     async init() {
       const p = new URLSearchParams(location.search);
@@ -569,6 +577,7 @@ document.addEventListener('alpine:init', () => {
       this.errorMessage = '';
       this.measurements = [];
       this.recommendation = '';
+      this.controls = [];
       this.progress = 0;
       if (this.$refs.videoFile) this.$refs.videoFile.value = '';
     },
@@ -602,6 +611,7 @@ document.addEventListener('alpine:init', () => {
             .filter(([k]) => metrics[k] != null && metrics[k] !== '')
             .map(([k, label]) => ({ label, value: metrics[k] }));
           this.recommendation = s.recommendation || '';
+          this.controls = Array.isArray(s.controls) ? s.controls : [];
         } else {
           clearTimeout(this._pollTimer);
           this._pollTimer = setTimeout(() => this.pollResult(), 4000);
@@ -613,19 +623,42 @@ document.addEventListener('alpine:init', () => {
     },
     get score() {
       if (!this.scan) return '–';
-      return Number(this.scan.result_score ?? this.scan.normalized_score ?? 0).toFixed(1);
+      return this.scoreValue.toFixed(1);
+    },
+    get scoreValue() {
+      if (!this.scan) return 0;
+
+      const normalized = Number(this.scan.normalized_score);
+      if (Number.isFinite(normalized) && normalized >= 0) {
+        return Math.min(100, normalized);
+      }
+
+      const raw = Number(this.scan.result_score ?? this.scan.raw_score ?? 0);
+      if (Number.isFinite(raw) && raw >= 0) {
+        return Math.min(100, raw * 10);
+      }
+
+      return 0;
     },
     get riskLevel() {
       if (!this.scan) return 'low';
-      return (this.scan.risk_level ?? this.scan.risk_category ?? 'low').toLowerCase();
+      const level = String(this.scan.risk_level ?? this.scan.risk_category ?? 'low').toLowerCase();
+      return level === 'medium' ? 'moderate' : level;
+    },
+    get riskLevelCategory() {
+      const l = String(this.riskLevel || '').toLowerCase();
+      if (l.includes('very high') || l.startsWith('high') || l.includes(' high ')) return 'high';
+      if (l.includes('moderate') || l.includes('medium')) return 'moderate';
+      if (l.includes('low')) return 'low';
+      return 'low';
     },
     get barColor() {
-      const l = this.riskLevel;
-      if (l.includes('very high') || l === 'high') return '#dc3545';
-      if (l === 'moderate' || l === 'medium') return '#fd7e14';
+      const l = this.riskLevelCategory;
+      if (l === 'high') return '#dc3545';
+      if (l === 'moderate') return '#fd7e14';
       return '#198754';
     },
-    get barWidth() { return Math.min(100, parseFloat(this.score) * 10 || 0) + '%'; },
+    get barWidth() { return Math.min(100, Math.max(0, this.scoreValue || 0)) + '%'; },
     destroy() { clearTimeout(this._pollTimer); if (this.videoPreviewUrl) URL.revokeObjectURL(this.videoPreviewUrl); }
   }));
 
@@ -633,7 +666,7 @@ document.addEventListener('alpine:init', () => {
   Alpine.data('scanResultsPage', () => ({
     scanId: null, scan: null, loading: true, error: '', pending: false,
     scanInvalid: false, errorMessage: '',
-    measurements: [], recommendation: '',
+    measurements: [], recommendation: '', controls: [],
     _pollTimer: null,
     init() {
       // Support both /scans/42 (path) and /scans?id=42 (query)
@@ -679,6 +712,7 @@ document.addEventListener('alpine:init', () => {
 
         // Recommendation from scan_results
         this.recommendation = s.recommendation || '';
+        this.controls = Array.isArray(s.controls) ? s.controls : [];
 
         this.pending = (s.status === 'pending' || s.status === 'processing');
         if (this.pending) {
@@ -690,23 +724,46 @@ document.addEventListener('alpine:init', () => {
     },
     get score() {
       if (!this.scan) return '–';
-      return Number(this.scan.result_score ?? this.scan.normalized_score ?? 0).toFixed(1);
+      return this.scoreValue.toFixed(1);
+    },
+    get scoreValue() {
+      if (!this.scan) return 0;
+
+      const normalized = Number(this.scan.normalized_score);
+      if (Number.isFinite(normalized) && normalized >= 0) {
+        return Math.min(100, normalized);
+      }
+
+      const raw = Number(this.scan.result_score ?? this.scan.raw_score ?? 0);
+      if (Number.isFinite(raw) && raw >= 0) {
+        return Math.min(100, raw * 10);
+      }
+
+      return 0;
     },
     get riskLevel() {
       if (!this.scan) return 'low';
-      return (this.scan.risk_level ?? this.scan.risk_category ?? 'low').toLowerCase();
+      const level = String(this.scan.risk_level ?? this.scan.risk_category ?? 'low').toLowerCase();
+      return level === 'medium' ? 'moderate' : level;
+    },
+    get riskLevelCategory() {
+      const l = String(this.riskLevel || '').toLowerCase();
+      if (l.includes('very high') || l.startsWith('high') || l.includes(' high ')) return 'high';
+      if (l.includes('moderate') || l.includes('medium')) return 'moderate';
+      if (l.includes('low')) return 'low';
+      return 'low';
     },
     get modelLabel() {
       if (!this.scan || !this.scan.model) return '';
       return this.scan.model.toUpperCase();
     },
     get barColor() {
-      const l = this.riskLevel;
-      if (l.includes('very high') || l === 'high') return '#dc3545';
-      if (l === 'moderate' || l === 'medium') return '#fd7e14';
+      const l = this.riskLevelCategory;
+      if (l === 'high') return '#dc3545';
+      if (l === 'moderate') return '#fd7e14';
       return '#198754';
     },
-    get barWidth() { return Math.min(100, parseFloat(this.score) * 10 || 0) + '%'; },
+    get barWidth() { return Math.min(100, Math.max(0, this.scoreValue || 0)) + '%'; },
     fmtDate(d) { return new Date(d).toLocaleString(); },
     destroy()  { clearTimeout(this._pollTimer); }
   }));
@@ -770,7 +827,7 @@ document.addEventListener('alpine:init', () => {
 
   /* ── Scan comparison page ─────────────────────────────────────────────── */
   Alpine.data('scanComparePage', () => ({
-    scanId: null, current: null, parent: null,
+    scanId: null, current: null, parent: null, improvementProof: null,
     loading: true, error: '',
     noComparisonData: false,
     init() {
@@ -784,6 +841,7 @@ document.addEventListener('alpine:init', () => {
         const d = await api('/scans/' + this.scanId + '/compare');
         this.current = d.current;
         this.parent  = d.parent;
+        this.improvementProof = d.improvement_proof || null;
         this.noComparisonData = !(this.current && this.parent);
         this.$nextTick(() => this.renderChart());
       } catch (e) { this.error = e.message; }
@@ -1602,6 +1660,20 @@ document.addEventListener('alpine:init', () => {
       name: '', slug: '', contact_email: '',
       industry: '', size: '', website: '', theme_color: '',
       default_model: '', video_retention_days: 30, auto_delete_video: false,
+      recommendation_policy: {
+        thresholds: {
+          trunk_flexion_high: 45,
+          trunk_flexion_moderate: 25,
+          upper_arm_elevation_high: 60,
+          repetition_high: 20,
+          lifting_load: 12,
+        },
+        ranking: {
+          cost_penalty_factor: 1.1,
+          impact_penalty_factor: 0.8,
+          reduction_factor: 1.0,
+        }
+      },
     },
     saving: false, saveSuccess: '', saveError: '',
 
@@ -1635,6 +1707,10 @@ document.addEventListener('alpine:init', () => {
     },
 
     _populateForm() {
+      const rp = this.org.recommendation_policy || {};
+      const thresholds = rp.thresholds || {};
+      const ranking = rp.ranking || {};
+
       this.form = {
         name:                this.org.name || '',
         slug:                this.org.slug || '',
@@ -1646,6 +1722,20 @@ document.addEventListener('alpine:init', () => {
         default_model:       this.org.default_model || '',
         video_retention_days: this.org.video_retention_days ?? 30,
         auto_delete_video:   !!this.org.auto_delete_video,
+        recommendation_policy: {
+          thresholds: {
+            trunk_flexion_high: Number(thresholds.trunk_flexion_high ?? 45),
+            trunk_flexion_moderate: Number(thresholds.trunk_flexion_moderate ?? 25),
+            upper_arm_elevation_high: Number(thresholds.upper_arm_elevation_high ?? 60),
+            repetition_high: Number(thresholds.repetition_high ?? 20),
+            lifting_load: Number(thresholds.lifting_load ?? 12),
+          },
+          ranking: {
+            cost_penalty_factor: Number(ranking.cost_penalty_factor ?? 1.1),
+            impact_penalty_factor: Number(ranking.impact_penalty_factor ?? 0.8),
+            reduction_factor: Number(ranking.reduction_factor ?? 1.0),
+          }
+        },
       };
     },
 
@@ -1666,6 +1756,102 @@ document.addEventListener('alpine:init', () => {
       this.saveSuccess = ''; this.saveError = '';
     },
     fmtDate(d) { return d ? new Date(d).toLocaleDateString() : '—'; }
+  }));
+
+  /* ── Leading Indicators Check-in page ─────────────────────────────────── */
+  Alpine.data('leadingIndicatorsPage', () => ({
+    tasks: [],
+    summary: null,
+    mine: { entries: [] },
+    loadingMine: false,
+    saving: false,
+    success: '',
+    error: '',
+    form: {
+      task_id: '',
+      shift_date: new Date().toISOString().slice(0, 10),
+      discomfort_level: 0,
+      fatigue_level: 0,
+      micro_breaks_taken: 0,
+      recovery_minutes: 0,
+      overtime_minutes: 0,
+      task_rotation_quality: 'fair',
+      psychosocial_load: 'moderate',
+      notes: '',
+    },
+
+    async init() {
+      this.error = '';
+      await this.loadTasks();
+      await this.loadMine();
+      await this.tryLoadSummary();
+    },
+
+    async loadTasks() {
+      try {
+        this.tasks = await api('/tasks');
+      } catch (_) {
+        this.tasks = [];
+      }
+    },
+
+    async loadMine() {
+      this.loadingMine = true;
+      try {
+        this.mine = await api('/leading-indicators/mine?days=14');
+      } catch (e) {
+        this.error = e.message;
+      } finally {
+        this.loadingMine = false;
+      }
+    },
+
+    async tryLoadSummary() {
+      try {
+        this.summary = await api('/leading-indicators/summary?days=30');
+      } catch (_) {
+        this.summary = null;
+      }
+    },
+
+    resetForm() {
+      this.form = {
+        task_id: '',
+        shift_date: new Date().toISOString().slice(0, 10),
+        discomfort_level: 0,
+        fatigue_level: 0,
+        micro_breaks_taken: 0,
+        recovery_minutes: 0,
+        overtime_minutes: 0,
+        task_rotation_quality: 'fair',
+        psychosocial_load: 'moderate',
+        notes: '',
+      };
+      this.error = '';
+    },
+
+    async submit() {
+      this.saving = true;
+      this.success = '';
+      this.error = '';
+      try {
+        await api('/leading-indicators', {
+          method: 'POST',
+          body: JSON.stringify({
+            ...this.form,
+            task_id: this.form.task_id ? Number(this.form.task_id) : null,
+          }),
+        });
+
+        this.success = 'Check-in submitted successfully.';
+        await this.loadMine();
+        await this.tryLoadSummary();
+      } catch (e) {
+        this.error = e.message;
+      } finally {
+        this.saving = false;
+      }
+    },
   }));
 
   /* ── Admin System Settings page ──────────────────────────────────────── */

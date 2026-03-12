@@ -125,6 +125,28 @@ CREATE TABLE IF NOT EXISTS scan_results (
     CONSTRAINT fk_results_scan FOREIGN KEY (scan_id) REFERENCES scans(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS scan_control_recommendations (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    scan_id BIGINT UNSIGNED NOT NULL,
+    rank_order TINYINT UNSIGNED NOT NULL,
+    hierarchy_level ENUM('elimination','substitution','engineering','administrative','ppe') NOT NULL,
+    control_code VARCHAR(120) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    expected_risk_reduction_pct DECIMAL(5,2) NOT NULL,
+    implementation_cost ENUM('low','medium','high') NOT NULL,
+    time_to_deploy_days INT UNSIGNED NOT NULL,
+    throughput_impact ENUM('low','medium','high') NOT NULL,
+    rationale TEXT NOT NULL,
+    evidence_json JSON NULL,
+    recommendation_engine_version VARCHAR(64) NOT NULL DEFAULT 'ctrl_rec_v1',
+    created_at DATETIME NOT NULL,
+    CONSTRAINT fk_ctrl_scan FOREIGN KEY (scan_id) REFERENCES scans(id) ON DELETE CASCADE,
+    UNIQUE KEY uniq_ctrl_scan_rank (scan_id, rank_order),
+    UNIQUE KEY uniq_ctrl_scan_code (scan_id, control_code),
+    INDEX idx_ctrl_scan (scan_id),
+    INDEX idx_ctrl_hierarchy (hierarchy_level)
+);
+
 -- Legacy tables kept for backwards compatibility with existing data.
 -- New scans use scan_metrics + scan_results instead.
 
@@ -186,6 +208,28 @@ CREATE TABLE IF NOT EXISTS usage_reservations (
     UNIQUE KEY uniq_usage_res_org_scan_type (organization_id, scan_id, usage_type),
     INDEX idx_usage_res_org_created (organization_id, created_at),
     INDEX idx_usage_res_created (created_at)
+);
+
+CREATE TABLE IF NOT EXISTS worker_leading_indicators (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    organization_id BIGINT UNSIGNED NOT NULL,
+    user_id BIGINT UNSIGNED NOT NULL,
+    task_id BIGINT UNSIGNED NULL,
+    shift_date DATE NOT NULL,
+    discomfort_level TINYINT UNSIGNED NOT NULL,
+    fatigue_level TINYINT UNSIGNED NOT NULL,
+    micro_breaks_taken SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    recovery_minutes SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    overtime_minutes SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    task_rotation_quality ENUM('poor','fair','good') NOT NULL DEFAULT 'fair',
+    psychosocial_load ENUM('low','moderate','high') NOT NULL DEFAULT 'moderate',
+    notes TEXT NULL,
+    created_at DATETIME NOT NULL,
+    CONSTRAINT fk_wli_org FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+    CONSTRAINT fk_wli_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_wli_task FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE SET NULL,
+    INDEX idx_wli_org_shift (organization_id, shift_date),
+    INDEX idx_wli_org_created (organization_id, created_at)
 );
 
 CREATE TABLE IF NOT EXISTS queue_jobs (

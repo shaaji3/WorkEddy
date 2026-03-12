@@ -34,6 +34,32 @@ final class WorkspaceRepository
         return $row;
     }
 
+    /**
+     * @return array<string,mixed>
+     */
+    public function organizationSettings(int $organizationId): array
+    {
+        $org = $this->findById($organizationId);
+        $raw = $org['settings'] ?? null;
+
+        if (is_array($raw)) {
+            return $raw;
+        }
+
+        if (is_string($raw) && $raw !== '') {
+            $decoded = json_decode($raw, true);
+            return is_array($decoded) ? $decoded : [];
+        }
+
+        return [];
+    }
+
+    public function organizationSetting(int $organizationId, string $key, mixed $default = null): mixed
+    {
+        $settings = $this->organizationSettings($organizationId);
+        return array_key_exists($key, $settings) ? $settings[$key] : $default;
+    }
+
     public function create(string $name, string $plan = 'starter'): int
     {
         $this->db->executeStatement(

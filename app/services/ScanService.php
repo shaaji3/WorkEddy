@@ -7,8 +7,10 @@ namespace WorkEddy\Services;
 use RuntimeException;
 use WorkEddy\Contracts\CacheInterface;
 use WorkEddy\Contracts\QueueInterface;
+use WorkEddy\Repositories\ControlRecommendationRepository;
 use WorkEddy\Repositories\ScanRepository;
 use WorkEddy\Repositories\TaskRepository;
+use WorkEddy\Repositories\WorkspaceRepository;
 use WorkEddy\Services\Ergonomics\AssessmentEngine;
 
 final class ScanService
@@ -27,11 +29,16 @@ final class ScanService
         private readonly QueueInterface    $queue,
         private readonly ?CacheInterface   $cache = null,
         private readonly int               $scanListCacheTtl = self::SCAN_LIST_CACHE_TTL,
+        private readonly ?WorkspaceRepository $workspaces = null,
+        private readonly ?ControlRecommendationRepository $controlRecommendations = null,
+        private readonly ?ControlRecommendationService $controlRecommendationEngine = null,
+        private readonly ?ImprovementProofService $improvementProofs = null,
+        private readonly ?VideoProcessingService $videos = null,
     ) {}
 
-    public function createManualScan(int $organizationId, int $userId, int $taskId, string $model, array $metrics): array
+    public function createManualScan(int $organizationId, int $userId, int $taskId, ?string $model, array $metrics): array
     {
-        $model = $this->normalizeModel($model);
+        $model = $this->resolveModelForInput($organizationId, $model, 'manual');
         $this->assessmentEngine->validateCombination($model, 'manual');
 
         $this->tasks->findById($organizationId, $taskId);
@@ -39,14 +46,15 @@ final class ScanService
 
         $score  = $this->assessmentEngine->assess($model, $metrics);
         $scanId = $this->scans->createManual($organizationId, $userId, $taskId, $model, $score, $metrics);
+        $this->persistRecommendations($organizationId, $scanId, $model, $metrics, $score);
         $this->invalidateScanLists($organizationId);
 
         return $this->scans->findById($organizationId, $scanId);
     }
 
-    public function createVideoScan(int $organizationId, int $userId, int $taskId, string $model, string $videoPath, ?int $parentScanId = null): array
+    public function createVideoScan(int $organizationId, int $userId, int $taskId, ?string $model, string $videoPath, ?int $parentScanId = null): array
     {
-        $model = $this->normalizeModel($model);
+        $model = $this->resolveModelForInput($organizationId, $model, 'video');
         $this->assessmentEngine->validateCombination($model, 'video');
 
         if (trim($videoPath) === '') {
@@ -108,6 +116,8 @@ final class ScanService
         $score = $this->assessmentEngine->assess($scanModel, $metrics);
 
         $this->scans->completeVideoProcessing($organizationId, $scanId, $scanModel, $score, $metrics);
+        $this->persistRecommendations($organizationId, $scanId, $scanModel, $metrics, $score);
+        $this->applyPrivacyPolicyAfterProcessing($organizationId, $scanId, $scan);
         $this->invalidateScanLists($organizationId);
 
         return $this->scans->findById($organizationId, $scanId);
@@ -125,6 +135,8 @@ final class ScanService
 
         $message = trim($errorMessage) !== '' ? trim($errorMessage) : 'Processing failed';
         $this->scans->markVideoInvalid($organizationId, $scanId, $message);
+        $scan = $this->scans->findWorkerScan($organizationId, $scanId);
+        $this->applyPrivacyPolicyAfterProcessing($organizationId, $scanId, $scan);
         $this->invalidateScanLists($organizationId);
     }
 
@@ -202,7 +214,107 @@ final class ScanService
         return [
             'current' => $current,
             'parent'  => $parent,
+            'improvement_proof' => ($this->improvementProofs ?? new ImprovementProofService())->build($parent, $current),
         ];
+    }
+
+    /**
+     * @param array<string,mixed> $metrics
+     * @param array<string,mixed> $score
+     */
+    private function persistRecommendations(int $organizationId, int $scanId, string $model, array $metrics, array $score): void
+    {
+        if ($this->controlRecommendations === null) {
+            return;
+        }
+
+        $engine = $this->controlRecommendationEngine ?? new ControlRecommendationService();
+        $policy = $this->orgSettingArray($organizationId, 'recommendation_policy', []);
+        $controls = $engine->recommend($model, $metrics, $score, $policy);
+        $this->controlRecommendations->replaceForScan($scanId, $controls);
+    }
+
+    /**
+     * @param array<string,mixed> $default
+     * @return array<string,mixed>
+     */
+    private function orgSettingArray(int $organizationId, string $key, array $default = []): array
+    {
+        if ($this->workspaces === null) {
+            return $default;
+        }
+
+        $value = $this->workspaces->organizationSetting($organizationId, $key, $default);
+        return is_array($value) ? $value : $default;
+    }
+
+    /**
+     * @param array<string,mixed> $scan
+     */
+    private function applyPrivacyPolicyAfterProcessing(int $organizationId, int $scanId, array $scan): void
+    {
+        if (!$this->orgSettingBool($organizationId, 'auto_delete_video', false)) {
+            return;
+        }
+
+        $videoPath = trim((string) ($scan['video_path'] ?? ''));
+        if ($videoPath === '') {
+            return;
+        }
+
+        if ($this->videos !== null) {
+            $this->videos->deleteVideo($videoPath);
+        } elseif (is_file($videoPath)) {
+            @unlink($videoPath);
+        }
+
+        $this->scans->clearVideoPath($organizationId, $scanId);
+    }
+
+    private function resolveModelForInput(int $organizationId, ?string $requestedModel, string $inputType): string
+    {
+        $candidate = strtolower(trim((string) $requestedModel));
+
+        if ($candidate === '' && $this->workspaces !== null) {
+            $candidate = strtolower(trim((string) $this->workspaces->organizationSetting($organizationId, 'default_model', '')));
+        }
+
+        if ($candidate === '') {
+            $candidate = 'reba';
+        }
+
+        $model = $this->normalizeModel($candidate);
+        $service = $this->assessmentEngine->resolve($model);
+
+        if (in_array($inputType, $service->supportedInputTypes(), true)) {
+            return $model;
+        }
+
+        // Safe fallback when org default is incompatible (e.g., NIOSH for video).
+        return $inputType === 'video' ? 'reba' : $model;
+    }
+
+    private function orgSettingBool(int $organizationId, string $key, bool $default): bool
+    {
+        if ($this->workspaces === null) {
+            return $default;
+        }
+
+        $value = $this->workspaces->organizationSetting($organizationId, $key, $default);
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        if (is_numeric($value)) {
+            return ((int) $value) === 1;
+        }
+
+        $normalized = strtolower(trim((string) $value));
+        if ($normalized === '') {
+            return $default;
+        }
+
+        return in_array($normalized, ['1', 'true', 'yes', 'on'], true);
     }
 
     private function normalizeModel(string $model): string

@@ -1,0 +1,167 @@
+<?php
+
+declare(strict_types=1);
+
+namespace WorkEddy\Tests\Services;
+
+use PHPUnit\Framework\TestCase;
+use WorkEddy\Services\ControlRecommendationService;
+
+final class ControlRecommendationServiceTest extends TestCase
+{
+    public function testRecommendReturnsRankedControlsWithVersion(): void
+    {
+        $svc = new ControlRecommendationService();
+
+        $rows = $svc->recommend('reba', [
+            'trunk_angle' => 50,
+            'upper_arm_angle' => 65,
+            'repetition_count' => 22,
+            'load_weight' => 14,
+        ], [
+            'normalized_score' => 60,
+            'risk_category' => 'high',
+        ]);
+
+        $this->assertNotEmpty($rows);
+        $this->assertLessThanOrEqual(5, count($rows));
+        $this->assertSame(1, $rows[0]['rank_order']);
+        $this->assertArrayHasKey('recommendation_engine_version', $rows[0]);
+    }
+
+    public function testPolicyThresholdOverrideChangesDriverActivation(): void
+    {
+        $svc = new ControlRecommendationService();
+
+        $defaultRows = $svc->recommend('reba', [
+            'trunk_angle' => 30,
+            'upper_arm_angle' => 10,
+            'repetition_count' => 0,
+            'load_weight' => 0,
+        ], [
+            'normalized_score' => 30,
+            'risk_category' => 'moderate',
+        ]);
+
+        $strictRows = $svc->recommend('reba', [
+            'trunk_angle' => 30,
+            'upper_arm_angle' => 10,
+            'repetition_count' => 0,
+            'load_weight' => 0,
+        ], [
+            'normalized_score' => 30,
+            'risk_category' => 'moderate',
+        ], [
+            'thresholds' => [
+                'trunk_flexion_moderate' => 35,
+                'trunk_flexion_high' => 60,
+            ],
+        ]);
+
+        $defaultCodes = array_column($defaultRows, 'control_code');
+        $strictCodes = array_column($strictRows, 'control_code');
+
+        $this->assertContains('ADMIN_WORK_HEIGHT_SETUP', $defaultCodes);
+        $this->assertNotContains('ADMIN_WORK_HEIGHT_SETUP', $strictCodes);
+    }
+
+    public function testPolicyCatalogSupportsCustomControls(): void
+    {
+        $svc = new ControlRecommendationService();
+
+        $rows = $svc->recommend('reba', [
+            'trunk_angle' => 10,
+            'upper_arm_angle' => 10,
+            'repetition_count' => 0,
+            'load_weight' => 0,
+        ], [
+            'normalized_score' => 25,
+            'risk_category' => 'low',
+        ], [
+            'catalog' => [
+                'general_risk' => [
+                    [
+                        'hierarchy_level' => 'administrative',
+                        'control_code' => 'ADMIN_TEAM_STRETCH',
+                        'title' => 'Team warm-up stretch protocol',
+                        'expected_risk_reduction_pct' => 9.0,
+                        'implementation_cost' => 'low',
+                        'time_to_deploy_days' => 1,
+                        'throughput_impact' => 'low',
+                        'rationale' => 'Reduces stiffness before repetitive work',
+                        'evidence' => ['driver' => 'general_risk'],
+                    ],
+                ],
+            ],
+        ]);
+
+        $codes = array_column($rows, 'control_code');
+        $this->assertContains('ADMIN_TEAM_STRETCH', $codes);
+    }
+
+    public function testOrgWeightingCanPrioritizeLowerCostControls(): void
+    {
+        $svc = new ControlRecommendationService();
+
+        $customCatalog = [
+            'catalog' => [
+                'general_risk' => [
+                    [
+                        'hierarchy_level' => 'administrative',
+                        'control_code' => 'CUSTOM_HIGH_REDUCTION_HIGH_COST',
+                        'title' => 'High reduction expensive control',
+                        'expected_risk_reduction_pct' => 45.0,
+                        'implementation_cost' => 'high',
+                        'time_to_deploy_days' => 10,
+                        'throughput_impact' => 'medium',
+                        'rationale' => 'Test control A',
+                        'evidence' => ['driver' => 'general_risk'],
+                    ],
+                    [
+                        'hierarchy_level' => 'administrative',
+                        'control_code' => 'CUSTOM_LOWER_REDUCTION_LOW_COST',
+                        'title' => 'Lower reduction cheaper control',
+                        'expected_risk_reduction_pct' => 16.0,
+                        'implementation_cost' => 'low',
+                        'time_to_deploy_days' => 2,
+                        'throughput_impact' => 'low',
+                        'rationale' => 'Test control B',
+                        'evidence' => ['driver' => 'general_risk'],
+                    ],
+                ],
+            ],
+        ];
+
+        $defaultRows = $svc->recommend('reba', [
+            'trunk_angle' => 10,
+            'upper_arm_angle' => 10,
+            'repetition_count' => 0,
+            'load_weight' => 0,
+        ], [
+            'normalized_score' => 50,
+            'risk_category' => 'moderate',
+        ], $customCatalog);
+
+        $costSensitiveRows = $svc->recommend('reba', [
+            'trunk_angle' => 10,
+            'upper_arm_angle' => 10,
+            'repetition_count' => 0,
+            'load_weight' => 0,
+        ], [
+            'normalized_score' => 50,
+            'risk_category' => 'moderate',
+        ], $customCatalog + [
+            'ranking' => [
+                'cost_penalty_factor' => 8.0,
+                'impact_penalty_factor' => 2.0,
+                'reduction_factor' => 0.8,
+            ],
+        ]);
+
+        $topDefault = $defaultRows[0]['control_code'];
+        $topCostSensitive = $costSensitiveRows[0]['control_code'];
+
+        $this->assertNotSame($topDefault, $topCostSensitive);
+        $this->assertSame('CUSTOM_LOWER_REDUCTION_LOW_COST', $topCostSensitive);
+    }
+}

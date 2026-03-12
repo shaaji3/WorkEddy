@@ -8,6 +8,8 @@ use Doctrine\DBAL\Connection;
 
 final class DashboardService
 {
+    private ?bool $hasLeadingIndicatorsTable = null;
+
     public function __construct(private readonly Connection $db) {}
 
     public function summary(int $organizationId): array
@@ -81,6 +83,37 @@ final class DashboardService
             ['org_id' => $organizationId]
         );
 
+        $leadingIndicators = [
+            'total_checkins_30d' => 0,
+            'avg_discomfort_30d' => null,
+            'avg_fatigue_30d' => null,
+            'avg_micro_breaks_30d' => null,
+            'high_psychosocial_count_30d' => 0,
+        ];
+
+        if ($this->hasLeadingIndicatorsTable()) {
+            $li = $this->db->fetchAssociative(
+                'SELECT
+                    COUNT(*) AS total_checkins,
+                    ROUND(AVG(discomfort_level), 2) AS avg_discomfort,
+                    ROUND(AVG(fatigue_level), 2) AS avg_fatigue,
+                    ROUND(AVG(micro_breaks_taken), 2) AS avg_micro_breaks,
+                    SUM(CASE WHEN psychosocial_load = "high" THEN 1 ELSE 0 END) AS high_psychosocial_count
+                 FROM worker_leading_indicators
+                 WHERE organization_id = :org_id
+                   AND shift_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)',
+                ['org_id' => $organizationId]
+            ) ?: [];
+
+            $leadingIndicators = [
+                'total_checkins_30d' => (int) ($li['total_checkins'] ?? 0),
+                'avg_discomfort_30d' => isset($li['avg_discomfort']) ? (float) $li['avg_discomfort'] : null,
+                'avg_fatigue_30d' => isset($li['avg_fatigue']) ? (float) $li['avg_fatigue'] : null,
+                'avg_micro_breaks_30d' => isset($li['avg_micro_breaks']) ? (float) $li['avg_micro_breaks'] : null,
+                'high_psychosocial_count_30d' => (int) ($li['high_psychosocial_count'] ?? 0),
+            ];
+        }
+
         return [
             'total_scans'        => (int)   ($totals['total_scans']   ?? 0),
             'high_risk'          => (int)   ($totals['high_risk']     ?? 0),
@@ -90,6 +123,19 @@ final class DashboardService
             'top_tasks'          => $topTasks,
             'weekly_trends'      => $weeklyTrends,
             'department_heatmap' => $departmentHeatmap,
+            'leading_indicators' => $leadingIndicators,
         ];
+    }
+
+    private function hasLeadingIndicatorsTable(): bool
+    {
+        if ($this->hasLeadingIndicatorsTable !== null) {
+            return $this->hasLeadingIndicatorsTable;
+        }
+
+        $tables = $this->db->createSchemaManager()->listTableNames();
+        $this->hasLeadingIndicatorsTable = in_array('worker_leading_indicators', $tables, true);
+
+        return $this->hasLeadingIndicatorsTable;
     }
 }
