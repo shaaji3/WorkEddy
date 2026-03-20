@@ -8,7 +8,7 @@ ob_start();
   <?php
   $headerTitle = 'Ergonomics Copilot';
   $headerBreadcrumbHtml = '<ol class="breadcrumb mb-0 text-sm"><li class="breadcrumb-item"><a href="/dashboard" class="text-decoration-none text-muted">Dashboard</a></li><li class="breadcrumb-item active">Copilot</li></ol>';
-  $headerActionsHtml = '<button type="button" class="btn btn-primary" data-bs-toggle="offcanvas" data-bs-target="#copilotConfigDrawer" aria-controls="copilotConfigDrawer"><i class="bi bi-magic me-1"></i>Run Copilot</button><a href="/scans/compare" class="btn btn-outline-secondary"><i class="bi bi-arrow-left-right me-1"></i>Compare Scans</a>';
+  $headerActionsHtml = '<button type="button" class="btn btn-primary" data-bs-toggle="offcanvas" data-bs-target="#copilotConfigDrawer" aria-controls="copilotConfigDrawer"><i class="bi bi-magic me-1"></i>Run Copilot</button>';
   require __DIR__ . '/../partials/page-header.php';
   ?>
 
@@ -25,7 +25,7 @@ ob_start();
             <p class="text-muted mb-0">Automated assessment for the selected analysis window.</p>
           </div>
           <div class="d-flex align-items-center gap-2 flex-wrap">
-            <span class="badge badge-soft-secondary text-capitalize" x-text="response?.persona || form.persona"></span>
+            <span class="badge badge-soft-secondary text-capitalize" x-text="personaLabel()"></span>
             <span class="badge text-capitalize" :class="llmStatusClass(response?.llm?.status)" x-text="response?.llm?.status || 'n/a'"></span>
           </div>
         </div>
@@ -75,12 +75,12 @@ ob_start();
         </div>
       </div>
 
-      <div class="card" x-show="response" x-cloak>
+      <div class="card" x-show="response && hasRecommendations()" x-cloak>
         <div class="card-header bg-transparent border-0 pb-0">
           <h6 class="mb-0 fw-semibold d-flex align-items-center gap-2">
             <i class="bi bi-calendar3 text-primary"></i>
-            Shift Risk Brief
-          </h6>
+            <span x-text="resultTitle()"></span>
+            </h6>
         </div>
         <div class="card-body pt-3">
           <div class="row g-3">
@@ -105,6 +105,14 @@ ob_start();
         </div>
       </div>
 
+      <div class="card" x-show="response && !hasRecommendations()" x-cloak>
+        <div class="card-body py-4 text-center">
+          <i class="bi bi-journal-text fs-2 text-muted d-block mb-2"></i>
+          <h6 class="mb-1">No Ranked Actions Returned</h6>
+          <p class="text-muted mb-0">This scoped response includes evidence and narrative guidance, but no deterministic action list.</p>
+        </div>
+      </div>
+
       <div class="copilot-narrative-card" x-show="response" x-cloak>
         <div class="copilot-narrative-glow"></div>
         <div class="copilot-narrative-body">
@@ -116,22 +124,22 @@ ob_start();
             </div>
           </div>
 
-          <p class="lead text-white mb-4" x-text="response?.result?.summary || 'No narrative summary available.'"></p>
+          <p class="lead text-white mb-4" x-text="summaryText()"></p>
 
           <div class="row g-4">
             <div class="col-12 col-lg-6">
               <h6 class="text-uppercase text-xs text-info mb-2"><i class="bi bi-lightbulb me-1"></i>Core Insight</h6>
-              <p class="mb-0 text-light" x-text="response?.narrative?.why_this_matters || response?.narrative?.executive_summary || 'Narrative insight unavailable.'"></p>
+              <p class="mb-0 text-light" x-text="coreInsightText()"></p>
             </div>
             <div class="col-12 col-lg-6">
               <h6 class="text-uppercase text-xs text-info mb-2"><i class="bi bi-flag-fill me-1"></i>Action Required</h6>
-              <p class="mb-0 text-light" x-text="response?.narrative?.recommended_actions_text || 'No action guidance returned by model.'"></p>
+              <p class="mb-0 text-light" x-text="actionGuidanceText()"></p>
             </div>
           </div>
 
           <div class="copilot-narrative-footer mt-4 pt-3">
             <div class="d-flex flex-wrap gap-3 text-xs text-light-emphasis">
-              <span x-show="response?.audit_id" x-cloak><strong>Scan Reference:</strong> <span x-text="response?.audit_id"></span></span>
+              <span x-show="response?.audit_id" x-cloak><strong>Audit Reference:</strong> <span x-text="response?.audit_id"></span></span>
               <span><strong>Confidence:</strong> <span x-text="kpiAvgConfidencePct()"></span></span>
             </div>
           </div>
@@ -187,7 +195,7 @@ ob_start();
           </div>
 
           <div class="mb-3" x-show="structuredControls().length > 0" x-cloak>
-            <p class="text-muted text-xs text-uppercase mb-2">Structured Control</p>
+            <p class="text-muted text-xs text-uppercase mb-2">Ranked Actions</p>
             <div class="table-responsive">
               <table class="table table-sm mb-0">
                 <thead>
@@ -270,7 +278,7 @@ ob_start();
 
           <div class="mb-3">
             <label class="form-label text-uppercase text-xs fw-semibold text-muted">Persona</label>
-            <select class="form-select form-select-lg" x-model="form.persona">
+            <select class="form-select form-select-lg" x-model="form.persona" @change="onPersonaChange()">
               <option value="supervisor">Supervisor</option>
               <option value="safety_manager">Safety Manager</option>
               <option value="engineer">Engineer</option>
@@ -279,17 +287,58 @@ ob_start();
           </div>
 
           <div class="row g-3">
-            <div class="col-sm-6">
+            <div :class="showsTargetScanSelector() ? 'col-sm-6' : 'col-12'">
               <label class="form-label text-uppercase text-xs fw-semibold text-muted">Window Days</label>
               <input type="number" min="1" max="90" class="form-control form-control-lg" x-model.number="form.window_days">
             </div>
-            <div class="col-sm-6">
-              <label class="form-label text-uppercase text-xs fw-semibold text-muted">Target Scan ID</label>
-              <input type="number" min="1" class="form-control form-control-lg" x-model.number="form.scan_id" placeholder="Optional">
+            <div class="col-sm-6" x-show="showsTargetScanSelector()" x-cloak>
+              <label class="form-label text-uppercase text-xs fw-semibold text-muted">
+                Target Scan
+                <span x-show="targetScanRequired()" class="text-danger">*</span>
+              </label>
+              <input type="search"
+                     class="form-control mb-2"
+                     x-model.trim="form.target_scan_query"
+                     placeholder="Search by scan #, task, risk, type, model">
+              <select class="form-select form-select-lg"
+                      x-model="form.scan_id"
+                      @change="onTargetScanChange()"
+                      :disabled="scopeLoading || targetScanOptions().length === 0">
+                <option value="">Select a completed scan</option>
+                <template x-for="scan in targetScanOptions()" :key="'target-' + scan.id">
+                  <option :value="String(scan.id)" x-text="scanDisplayLabel(scan)"></option>
+                </template>
+              </select>
+              <div class="form-text" x-show="selectedTargetScanMeta()" x-text="selectedTargetScanMeta()"></div>
+              <div class="form-text text-warning" x-show="!scopeLoading && form.target_scan_query && targetScanOptions().length === 0" x-cloak>
+                No completed scans match this target scan search.
+              </div>
             </div>
-            <div class="col-12">
-              <label class="form-label text-uppercase text-xs fw-semibold text-muted">Baseline Scan ID</label>
-              <input type="number" min="1" class="form-control form-control-lg" x-model.number="form.baseline_scan_id" placeholder="Required for auditor compare mode">
+            <div class="col-12" x-show="showsBaselineScanSelector()" x-cloak>
+              <label class="form-label text-uppercase text-xs fw-semibold text-muted">Baseline Scan</label>
+              <input type="search"
+                     class="form-control mb-2"
+                     x-model.trim="form.baseline_scan_query"
+                     placeholder="Search baseline scans">
+              <select class="form-select form-select-lg"
+                      x-model="form.baseline_scan_id"
+                      :disabled="scopeLoading || baselineScanOptions().length === 0">
+                <option value="">Use linked parent scan when available</option>
+                <template x-for="scan in baselineScanOptions()" :key="'baseline-' + scan.id">
+                  <option :value="String(scan.id)" x-text="scanDisplayLabel(scan)"></option>
+                </template>
+              </select>
+              <div class="form-text" x-show="selectedBaselineScanMeta()" x-text="selectedBaselineScanMeta()"></div>
+              <div class="form-text">Auditor compare mode can use the linked parent scan automatically when one exists.</div>
+              <div class="form-text text-warning" x-show="!scopeLoading && form.baseline_scan_query && baselineScanOptions().length === 0" x-cloak>
+                No completed scans match this baseline search.
+              </div>
+            </div>
+            <div class="col-12" x-show="scopeLoading" x-cloak>
+              <div class="text-muted text-sm">Loading completed scans...</div>
+            </div>
+            <div class="col-12" x-show="scopeError && !scopeLoading" x-cloak>
+              <div class="alert alert-warning py-2 mb-0" x-text="scopeError"></div>
             </div>
           </div>
 
@@ -301,15 +350,18 @@ ob_start();
         </div>
       </div>
 
-      <div class="card mb-0">
-        <div class="card-header bg-light-subtle border-bottom">
-          <p class="mb-0 text-xs fw-bold text-uppercase text-muted">Recent Insights</p>
-        </div>
-        <div class="list-group list-group-flush">
-          <template x-for="(insight, idx) in recentInsights()" :key="idx">
-            <div class="list-group-item py-3 d-flex align-items-start gap-3">
-              <i class="bi bi-clock-history text-muted mt-1"></i>
-              <div>
+        <div class="card mb-0">
+          <div class="card-header bg-light-subtle border-bottom">
+            <p class="mb-0 text-xs fw-bold text-uppercase text-muted" x-text="recentInsightsHeading()"></p>
+          </div>
+          <div class="list-group list-group-flush">
+            <template x-if="recentInsights().length === 0">
+              <div class="list-group-item py-4 text-center text-muted small" x-text="recentInsightsEmptyText()"></div>
+            </template>
+            <template x-for="(insight, idx) in recentInsights()" :key="idx">
+              <div class="list-group-item py-3 d-flex align-items-start gap-3">
+                <i class="bi bi-clock-history text-muted mt-1"></i>
+                <div>
                 <div class="fw-semibold text-sm" x-text="insight.title"></div>
                 <div class="text-muted text-xs" x-text="insight.subtitle"></div>
               </div>
@@ -324,4 +376,3 @@ ob_start();
 <?php
 $content = ob_get_clean();
 require __DIR__ . '/../layouts/main.php';
-

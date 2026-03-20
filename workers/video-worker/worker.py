@@ -86,6 +86,13 @@ def _api_request(
         raise RuntimeError(
             f"Worker API request failed with status {exc.code}: {error_body or str(exc)}"
         ) from exc
+    except TimeoutError as exc:
+        # Python 3.11+: socket.timeout is TimeoutError, a sibling of URLError (both
+        # are OSError subclasses).  Timeouts on response.read() raise it directly
+        # without going through URLError, so it must be caught explicitly.
+        raise RuntimeError(
+            f"Worker API request timed out after {API_TIMEOUT_SECONDS}s"
+        ) from exc
     except urllib.error.URLError as exc:
         raise RuntimeError(f"Worker API request failed: {exc.reason}") from exc
 

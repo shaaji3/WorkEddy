@@ -10,6 +10,7 @@
 $pageTitle  = $pageTitle  ?? 'WorkEddy';
 $activePage = $activePage ?? '';
 $content    = $content    ?? '';
+$liveFeatureEnabled = (bool) ((require dirname(__DIR__, 2) . '/app/config/live.php')['enabled'] ?? false);
 ?>
 <!doctype html>
 <html lang="en">
@@ -63,24 +64,30 @@ $content    = $content    ?? '';
           <ul class="menu-sub list-unstyled" x-show="open">
             <li class="menu-sub-item">
               <a href="/scans/new-manual"
-                 class="menu-sub-link<?= $activePage === 'scans' ? ' active' : '' ?>">
+                 class="menu-sub-link<?= $activePage === 'scans' ? ' active' : '' ?>"
+                 x-show="$store.auth.role === 'super_admin' || $store.auth.role === 'admin' || $store.auth.role === 'supervisor' || $store.auth.role === 'worker'"
+                 x-cloak>
                 <i class="bi bi-keyboard"></i> Manual Scan
               </a>
             </li>
             <li class="menu-sub-item">
               <a href="/scans/new-video"
-                 class="menu-sub-link<?= $activePage === 'scans-video' ? ' active' : '' ?>">
+                 class="menu-sub-link<?= $activePage === 'scans-video' ? ' active' : '' ?>"
+                 x-show="$store.auth.role === 'super_admin' || $store.auth.role === 'admin' || $store.auth.role === 'supervisor' || $store.auth.role === 'worker'"
+                 x-cloak>
                 <i class="bi bi-camera-video"></i> Video Scan
               </a>
             </li>
+            <?php if ($liveFeatureEnabled): ?>
             <li class="menu-sub-item"
-                x-show="$store.auth.role === 'admin' || $store.auth.role === 'supervisor' || $store.auth.role === 'observer' || $store.auth.role === 'super_admin'"
+                x-show="$store.auth.role === 'super_admin' || $store.auth.role === 'admin' || $store.auth.role === 'supervisor' || $store.auth.role === 'observer'"
                 x-cloak>
               <a href="/scans/live-capture"
                  class="menu-sub-link<?= $activePage === 'scans-live' ? ' active' : '' ?>">
                 <i class="bi bi-broadcast"></i> Live Capture
               </a>
             </li>
+            <?php endif; ?>
             <li class="menu-sub-item">
               <a href="/scans/compare"
                  class="menu-sub-link<?= $activePage === 'scans-compare' ? ' active' : '' ?>">
@@ -292,11 +299,13 @@ $content    = $content    ?? '';
         <a href="/scans/new-video" class="scan-sheet-item">
           <i class="bi bi-camera-video"></i> Video Scan
         </a>
+        <?php if ($liveFeatureEnabled): ?>
         <a href="/scans/live-capture" class="scan-sheet-item"
            x-show="$store.auth.role === 'admin' || $store.auth.role === 'supervisor' || $store.auth.role === 'observer' || $store.auth.role === 'super_admin'"
            x-cloak>
           <i class="bi bi-broadcast"></i> Live Capture
         </a>
+        <?php endif; ?>
       </div>
       <button class="bottom-nav-item<?= $scanActive ? ' active' : '' ?> border-0 bg-transparent p-0"
               @click.stop="open = !open">

@@ -72,6 +72,8 @@ final class ErgonomicsCopilotServiceTest extends TestCase
         $result = $service->assist(5, 99, 'supervisor', ['window_days' => 14]);
 
         $this->assertSame('supervisor', $result['persona']);
+        $this->assertSame(14, $result['facts']['window_days']);
+        $this->assertCount(3, $result['recommendations']);
         $this->assertSame('Shift risk brief (14d)', $result['result']['title']);
         $this->assertSame(12, $result['result']['summary']['total_scans']);
         $this->assertSame(3, $result['result']['summary']['high_risk_scans']);

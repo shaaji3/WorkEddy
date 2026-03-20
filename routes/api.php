@@ -18,7 +18,10 @@ use WorkEddy\Helpers\Response;
 use WorkEddy\Helpers\WorkerContract;
 
 return static function (Container $c): Closure {
-    return static function (FastRoute\RouteCollector $r) use ($c): void {
+    $liveConfig = require __DIR__ . '/../app/config/live.php';
+    $liveEnabled = (bool) ($liveConfig['enabled'] ?? false);
+
+    return static function (FastRoute\RouteCollector $r) use ($c, $liveEnabled): void {
 
         // ── Health ────────────────────────────────────────────────────
         $r->addRoute('GET', '/health', fn () =>
@@ -76,14 +79,16 @@ return static function (Container $c): Closure {
         $r->addRoute('POST', '/control-actions/{id:\d+}/verify', fn ($v, $b) => $c->controlActionCtrl()->verify($c->auth(), (int) $v['id'], $b));
 
         // ── Live sessions (user-authenticated) ──────────────────────
-        $r->addRoute('GET',  '/live/engines',                  fn ($v, $b) => $c->liveSessionCtrl()->engines());
-        $r->addRoute('POST', '/live/sessions',                 fn ($v, $b) => $c->liveSessionCtrl()->start($c->auth(), $b));
-        $r->addRoute('GET',  '/live/sessions',                 fn ($v, $b) => $c->liveSessionCtrl()->index($c->auth()));
-        $r->addRoute('GET',  '/live/sessions/{id:\d+}',        fn ($v, $b) => $c->liveSessionCtrl()->show($c->auth(), (int) $v['id']));
-        $r->addRoute('POST', '/live/sessions/{id:\d+}/stop',   fn ($v, $b) => $c->liveSessionCtrl()->stop($c->auth(), (int) $v['id']));
-        $r->addRoute('GET',  '/live/sessions/{id:\d+}/stream', fn ($v, $b) => $c->liveSessionCtrl()->stream($c->auth(), (int) $v['id']));
-        $r->addRoute('POST', '/live/sessions/{id:\d+}/frames', fn ($v, $b) => $c->liveSessionCtrl()->ingestFrames($c->auth(), (int) $v['id'], $b));
-        $r->addRoute('GET',  '/live/sessions/{id:\d+}/frames', fn ($v, $b) => $c->liveSessionCtrl()->frames($c->auth(), (int) $v['id']));
+        if ($liveEnabled) {
+            $r->addRoute('GET',  '/live/engines',                  fn ($v, $b) => $c->liveSessionCtrl()->engines());
+            $r->addRoute('POST', '/live/sessions',                 fn ($v, $b) => $c->liveSessionCtrl()->start($c->auth(), $b));
+            $r->addRoute('GET',  '/live/sessions',                 fn ($v, $b) => $c->liveSessionCtrl()->index($c->auth()));
+            $r->addRoute('GET',  '/live/sessions/{id:\d+}',        fn ($v, $b) => $c->liveSessionCtrl()->show($c->auth(), (int) $v['id']));
+            $r->addRoute('POST', '/live/sessions/{id:\d+}/stop',   fn ($v, $b) => $c->liveSessionCtrl()->stop($c->auth(), (int) $v['id']));
+            $r->addRoute('GET',  '/live/sessions/{id:\d+}/stream', fn ($v, $b) => $c->liveSessionCtrl()->stream($c->auth(), (int) $v['id']));
+            $r->addRoute('POST', '/live/sessions/{id:\d+}/frames', fn ($v, $b) => $c->liveSessionCtrl()->ingestFrames($c->auth(), (int) $v['id'], $b));
+            $r->addRoute('GET',  '/live/sessions/{id:\d+}/frames', fn ($v, $b) => $c->liveSessionCtrl()->frames($c->auth(), (int) $v['id']));
+        }
 
         // ── Internal worker callbacks (token-authenticated) ───────────
         $r->addRoute('POST', WorkerContract::videoRoute('next_job'), fn ($v, $b) => $c->workerCtrl()->nextJob());
@@ -91,11 +96,13 @@ return static function (Container $c): Closure {
         $r->addRoute('POST', WorkerContract::videoRoute('fail'), fn ($v, $b) => $c->workerCtrl()->fail($b));
 
         // ── Internal live-worker callbacks (token-authenticated) ──────
-        $r->addRoute('POST', WorkerContract::liveRoute('next_job'), fn ($v, $b) => $c->liveWorkerCtrl()->nextJob());
-        $r->addRoute('POST', WorkerContract::liveRoute('next_batch'), fn ($v, $b) => $c->liveWorkerCtrl()->nextFrameBatch());
-        $r->addRoute('POST', WorkerContract::liveRoute('frames'), fn ($v, $b) => $c->liveWorkerCtrl()->reportFrames($b));
-        $r->addRoute('POST', WorkerContract::liveRoute('complete'), fn ($v, $b) => $c->liveWorkerCtrl()->complete($b));
-        $r->addRoute('POST', WorkerContract::liveRoute('fail'), fn ($v, $b) => $c->liveWorkerCtrl()->fail($b));
+        if ($liveEnabled) {
+            $r->addRoute('POST', WorkerContract::liveRoute('next_job'), fn ($v, $b) => $c->liveWorkerCtrl()->nextJob());
+            $r->addRoute('POST', WorkerContract::liveRoute('next_batch'), fn ($v, $b) => $c->liveWorkerCtrl()->nextFrameBatch());
+            $r->addRoute('POST', WorkerContract::liveRoute('frames'), fn ($v, $b) => $c->liveWorkerCtrl()->reportFrames($b));
+            $r->addRoute('POST', WorkerContract::liveRoute('complete'), fn ($v, $b) => $c->liveWorkerCtrl()->complete($b));
+            $r->addRoute('POST', WorkerContract::liveRoute('fail'), fn ($v, $b) => $c->liveWorkerCtrl()->fail($b));
+        }
 
         // ── Observer ──────────────────────────────────────────────────
         $r->addRoute('POST', '/observer-rating',            fn ($v, $b) => $c->observerCtrl()->rate($c->auth(), $b));

@@ -1,5 +1,5 @@
 <?php
-$pageTitle  = 'Wellbeing Check-in';
+$pageTitle = 'Wellbeing Check-in';
 $activePage = 'leading-indicators';
 ob_start();
 ?>
@@ -13,7 +13,7 @@ ob_start();
   ?>
 
   <div class="row g-4">
-    <div class="col-12 col-xl-7">
+    <div class="col-12 col-xl-12">
       <div class="card">
         <div class="card-header">
           <h6 class="mb-0 fw-semibold">Submit Shift Check-in</h6>
@@ -87,7 +87,8 @@ ob_start();
 
             <div class="col-12">
               <label class="form-label">Notes (optional)</label>
-              <textarea class="form-control" rows="3" maxlength="2000" x-model="form.notes" placeholder="Anything affecting comfort/fatigue today..."></textarea>
+              <textarea class="form-control" rows="3" maxlength="2000" x-model="form.notes"
+                placeholder="Anything affecting comfort/fatigue today..."></textarea>
             </div>
           </div>
 
@@ -100,28 +101,20 @@ ob_start();
           </div>
         </div>
       </div>
+
     </div>
 
-    <div class="col-12 col-xl-5">
+    <div class="col-12 col-xl-7">
       <div class="card mb-4">
         <div class="card-header d-flex justify-content-between align-items-center">
           <h6 class="mb-0 fw-semibold">Personalized Coaching</h6>
-          <select class="form-select form-select-sm" style="max-width:130px"
-                  x-model="coachingLanguage" @change="loadCoaching()">
-            <option value="en">English</option>
-            <option value="es">Español</option>
-            <option value="zh">中文</option>
-            <option value="ar">العربية</option>
-          </select>
         </div>
         <div class="card-body" x-show="loadingCoaching" x-cloak>
-          <div class="text-center text-muted"><div class="spinner-border spinner-border-sm"></div></div>
+          <div class="text-center text-muted">
+            <div class="spinner-border spinner-border-sm"></div>
+          </div>
         </div>
         <div class="card-body" x-show="!loadingCoaching && coaching">
-          <div class="d-flex align-items-center justify-content-between mb-3">
-            <span class="text-muted text-xs text-uppercase">Language</span>
-            <span class="badge badge-soft-primary" x-text="coaching.language_label || coaching.language"></span>
-          </div>
 
           <p class="text-muted text-xs text-uppercase mb-2">Today’s Tips</p>
           <div class="d-grid gap-2 mb-3">
@@ -141,14 +134,17 @@ ob_start();
           </ol>
         </div>
       </div>
-
+    </div>
+    <div class="col-12 col-xl-5">
       <div class="card mb-4">
         <div class="card-header d-flex justify-content-between align-items-center">
           <h6 class="mb-0 fw-semibold">My Recent Check-ins</h6>
           <span class="badge badge-soft-secondary" x-text="(mine.entries || []).length + ' entries'"></span>
         </div>
         <div class="card-body" x-show="loadingMine" x-cloak>
-          <div class="text-center text-muted"><div class="spinner-border spinner-border-sm"></div></div>
+          <div class="text-center text-muted">
+            <div class="spinner-border spinner-border-sm"></div>
+          </div>
         </div>
         <div class="card-body" x-show="!loadingMine && (!mine.entries || mine.entries.length === 0)" x-cloak>
           <p class="text-muted mb-0">No check-ins yet.</p>
@@ -157,7 +153,10 @@ ob_start();
           <table class="table table-sm mb-0 align-middle">
             <thead>
               <tr>
-                <th>Date</th><th>Discomfort</th><th>Fatigue</th><th>Load</th>
+                <th>Date</th>
+                <th>Discomfort</th>
+                <th>Fatigue</th>
+                <th>Load</th>
               </tr>
             </thead>
             <tbody>
@@ -165,7 +164,8 @@ ob_start();
                 <tr>
                   <td>
                     <div x-text="e.shift_date"></div>
-                    <div class="text-muted text-xs text-capitalize" x-text="String(e.checkin_type || '').replace('_', ' ')"></div>
+                    <div class="text-muted text-xs text-capitalize"
+                      x-text="String(e.checkin_type || '').replace('_', ' ')"></div>
                   </td>
                   <td x-text="e.discomfort_level"></td>
                   <td x-text="e.fatigue_level"></td>
@@ -178,7 +178,9 @@ ob_start();
       </div>
 
       <div class="card" x-show="hasSummary" x-cloak>
-        <div class="card-header"><h6 class="mb-0 fw-semibold">Team Snapshot (Admin/Supervisor)</h6></div>
+        <div class="card-header">
+          <h6 class="mb-0 fw-semibold">Team Snapshot (Admin/Supervisor)</h6>
+        </div>
         <div class="card-body">
           <div class="row g-3">
             <div class="col-6">
@@ -187,11 +189,13 @@ ob_start();
             </div>
             <div class="col-6">
               <p class="text-muted text-xs text-uppercase mb-1">Avg Discomfort</p>
-              <p class="h5 mb-0" x-text="summary.avg_discomfort != null ? Number(summary.avg_discomfort).toFixed(2) : '—'"></p>
+              <p class="h5 mb-0"
+                x-text="summary.avg_discomfort != null ? Number(summary.avg_discomfort).toFixed(2) : '—'"></p>
             </div>
             <div class="col-6">
               <p class="text-muted text-xs text-uppercase mb-1">Avg Fatigue</p>
-              <p class="h5 mb-0" x-text="summary.avg_fatigue != null ? Number(summary.avg_fatigue).toFixed(2) : '—'"></p>
+              <p class="h5 mb-0" x-text="summary.avg_fatigue != null ? Number(summary.avg_fatigue).toFixed(2) : '—'">
+              </p>
             </div>
             <div class="col-6">
               <p class="text-muted text-xs text-uppercase mb-1">High Psychosocial</p>

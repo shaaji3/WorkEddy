@@ -134,7 +134,7 @@ final class ScanService
 
         $this->scans->completeVideoProcessing($organizationId, $scanId, $scanModel, $score, $metrics, $resolvedPoseVideoPath);
         $this->persistRecommendations($organizationId, $scanId, $scanModel, $metrics, $score);
-        $this->applyPrivacyPolicyAfterProcessing($organizationId, $scanId, $scan);
+        $this->applyPrivacyPolicyAfterProcessing($organizationId, $scanId, $scan, $resolvedPoseVideoPath);
         $this->invalidateScanLists($organizationId);
 
         return $this->scans->findDetailedById($organizationId, $scanId);
@@ -267,21 +267,26 @@ final class ScanService
     /**
      * @param array<string,mixed> $scan
      */
-    private function applyPrivacyPolicyAfterProcessing(int $organizationId, int $scanId, array $scan): void
+    private function applyPrivacyPolicyAfterProcessing(int $organizationId, int $scanId, array $scan, ?string $retainedVideoPath = null): void
     {
         if (!$this->orgSettingBool($organizationId, 'auto_delete_video', false)) {
             return;
         }
 
         $videoPath = trim((string) ($scan['video_path'] ?? ''));
-        if ($videoPath === '') {
-            return;
+        $retainedPath = trim((string) ($retainedVideoPath ?? ''));
+
+        if ($videoPath !== '' && $videoPath !== $retainedPath) {
+            if ($this->videos !== null) {
+                $this->videos->deleteVideo($videoPath);
+            } elseif (is_file($videoPath)) {
+                @unlink($videoPath);
+            }
         }
 
-        if ($this->videos !== null) {
-            $this->videos->deleteVideo($videoPath);
-        } elseif (is_file($videoPath)) {
-            @unlink($videoPath);
+        // Keep the processed pose video path when provided by the worker.
+        if ($retainedPath !== '') {
+            return;
         }
 
         $this->scans->clearVideoPath($organizationId, $scanId);

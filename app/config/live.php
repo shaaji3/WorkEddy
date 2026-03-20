@@ -32,6 +32,8 @@ if ($planConcurrencyOverridesRaw !== '') {
  */
 
 return [
+    // Live scan is deferred to WorkEddy V2 and disabled in this release by default.
+    'enabled' => $envBool('LIVE_ENABLED', false),
     // ── Pose engine ────────────────────────────────────────────────────
     // Which model backend to use for live-stream pose estimation.
     //   "mediapipe" — MediaPipe Pose Landmarker (lighter, lower GPU requirement)

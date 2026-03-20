@@ -28,6 +28,7 @@ final class LiveSessionServiceTest extends TestCase
     private function defaultConfig(): array
     {
         return [
+            'enabled'                  => true,
             'pose_engine'              => 'yolo26',
             'scoring_model'            => 'reba',
             'target_fps'               => 5.0,

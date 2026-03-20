@@ -24,6 +24,18 @@ final class LiveSessionService
         private readonly ?CacheInterface       $cache = null,
     ) {}
 
+    public function isEnabled(): bool
+    {
+        return (bool) ($this->config['enabled'] ?? false);
+    }
+
+    private function assertFeatureEnabled(): void
+    {
+        if (!$this->isEnabled()) {
+            throw new RuntimeException('Live scan is disabled in this release');
+        }
+    }
+
     // ─── User-facing ──────────────────────────────────────────────────
 
     /**
@@ -36,6 +48,8 @@ final class LiveSessionService
         ?string $poseEngine = null,
         ?string $scoringModel = null,
     ): array {
+        $this->assertFeatureEnabled();
+
         // Validate task belongs to org
         $this->tasks->findById($organizationId, $taskId);
 
@@ -109,6 +123,8 @@ final class LiveSessionService
      */
     public function ingestFrameBatch(int $organizationId, int $sessionId, array $frames, array $telemetry = []): array
     {
+        $this->assertFeatureEnabled();
+
         $session = $this->repo->findById($organizationId, $sessionId);
 
         if (($session['status'] ?? null) !== 'active') {
@@ -189,6 +205,8 @@ final class LiveSessionService
      */
     public function getSession(int $organizationId, int $sessionId): array
     {
+        $this->assertFeatureEnabled();
+
         return $this->augmentRuntimeSessionFields(
             $this->normalizeSession($this->repo->findById($organizationId, $sessionId))
         );
@@ -196,6 +214,10 @@ final class LiveSessionService
 
     public function isSessionAcceptingFrames(int $organizationId, int $sessionId): bool
     {
+        if (!$this->isEnabled()) {
+            return false;
+        }
+
         try {
             $session = $this->repo->findById($organizationId, $sessionId);
         } catch (RuntimeException) {
@@ -210,6 +232,8 @@ final class LiveSessionService
      */
     public function listSessions(int $organizationId, ?string $status = null): array
     {
+        $this->assertFeatureEnabled();
+
         return array_map(
             fn (array $row): array => $this->augmentRuntimeSessionFields($this->normalizeSession($row)),
             $this->repo->listByOrganization($organizationId, $status)
@@ -221,6 +245,8 @@ final class LiveSessionService
      */
     public function stopSession(int $organizationId, int $sessionId): array
     {
+        $this->assertFeatureEnabled();
+
         $session = $this->repo->findById($organizationId, $sessionId);
 
         if ($session['status'] !== 'active' && $session['status'] !== 'paused') {
@@ -240,6 +266,8 @@ final class LiveSessionService
      */
     public function getRecentFrames(int $organizationId, int $sessionId, int $limit = 50): array
     {
+        $this->assertFeatureEnabled();
+
         // Validate session belongs to org
         $this->repo->findById($organizationId, $sessionId);
 
@@ -267,6 +295,8 @@ final class LiveSessionService
      */
     public function streamSnapshot(int $organizationId, int $sessionId, int $limit = 30): array
     {
+        $this->assertFeatureEnabled();
+
         $session = $this->getSession($organizationId, $sessionId);
 
         return [
@@ -282,6 +312,8 @@ final class LiveSessionService
      */
     public function getEngineConfig(): array
     {
+        $this->assertFeatureEnabled();
+
         return [
             'available_engines' => [
                 [
@@ -337,6 +369,8 @@ final class LiveSessionService
         array  $frames,
         array  $telemetry = [],
     ): array {
+        $this->assertFeatureEnabled();
+
         $session = $this->repo->findById($organizationId, $sessionId);
 
         if ($session['status'] !== 'active') {
@@ -385,6 +419,8 @@ final class LiveSessionService
         int   $organizationId,
         array $summaryMetrics,
     ): array {
+        $this->assertFeatureEnabled();
+
         $session = $this->repo->findById($organizationId, $sessionId);
 
         $this->repo->storeSummary($sessionId, $summaryMetrics);
@@ -402,6 +438,8 @@ final class LiveSessionService
         int    $organizationId,
         string $errorMessage,
     ): void {
+        $this->assertFeatureEnabled();
+
         $this->repo->updateStatus($sessionId, 'failed', $errorMessage);
         $this->touchStreamVersion($sessionId);
     }

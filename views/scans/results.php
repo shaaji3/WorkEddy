@@ -281,22 +281,25 @@ ob_start();
   </div>
 
     <!-- Video Preview -->
-  <div class="card mb-4" x-show="scan && scan.video_path && !loading" x-cloak>
+  <div class="card mb-4" x-show="scan && !loading && poseVideoUrl" x-cloak>
     <div class="card-header d-flex align-items-center gap-2">
       <i class="bi bi-camera-video text-primary"></i>
       <h6 class="mb-0 fw-semibold">Pose Detection Video</h6>
     </div>
     <div class="card-body p-0">
       <video class="w-100 rounded-bottom" style="max-height:400px;background:#000" controls preload="metadata"
-             :src="(scan && scan.video_path)
-            ? (String(scan.video_path).startsWith('/storage/uploads/pose/')
-              ? String(scan.video_path).replace('/storage/uploads/pose/', '/storage/pose/')
-              : String(scan.video_path).startsWith('/storage/uploads/videos/')
-              ? String(scan.video_path).replace('/storage/uploads/videos/', '/storage/videos/')
-                    : String(scan.video_path))
-                : ''">
+             :src="poseVideoUrl">
         Your browser does not support video playback.
       </video>
+    </div>
+  </div>
+
+  <div class="alert alert-warning align-items-start gap-2"
+       x-show="scan && !loading && scan.scan_type === 'video' && scan.status === 'completed' && !poseVideoUrl" x-cloak>
+    <i class="bi bi-info-circle flex-shrink-0 mt-1"></i>
+    <div>
+      <strong>Pose video unavailable</strong>
+      <p class="mb-0 mt-1">This scan completed without a stored preview video. Check organization video retention settings or retry the scan if a video preview is required.</p>
     </div>
   </div>
 </div>

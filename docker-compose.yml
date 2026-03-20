@@ -101,6 +101,8 @@ services:
     build:
       context: .
       dockerfile: infrastructure/docker/live-worker.dockerfile
+    profiles:
+      - live
     volumes:
       - ./workers/live-worker:/app/workers/live-worker
       - ./workers/shared:/app/workers/shared:ro

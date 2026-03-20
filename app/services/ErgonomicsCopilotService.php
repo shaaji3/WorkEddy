@@ -33,6 +33,8 @@ final class ErgonomicsCopilotService
             'persona' => $normalizedPersona,
             'generated_at' => (new \DateTimeImmutable('now'))->format(DATE_ATOM),
             'guardrails' => is_array($bundle['guardrails'] ?? null) ? $bundle['guardrails'] : [],
+            'facts' => is_array($bundle['facts'] ?? null) ? $bundle['facts'] : [],
+            'recommendations' => is_array($bundle['recommendations'] ?? null) ? $bundle['recommendations'] : [],
             'result' => is_array($bundle['result'] ?? null) ? $bundle['result'] : [],
             'citations' => is_array($bundle['citations'] ?? null) ? $bundle['citations'] : [],
             'narrative' => is_array($narrative['narrative'] ?? null) ? $narrative['narrative'] : [],

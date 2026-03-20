@@ -6,6 +6,13 @@ document.addEventListener('alpine:init', () => {
 
   Alpine.data('dashboardPage', () => ({
     totalScans: '-', highRisk: '-', moderateRisk: '-', avgScore: '-',
+    dashboardMode: 'organization',
+    kpiLabels: {
+      total_scans: 'Total Scans',
+      high_risk: 'High Risk',
+      moderate_risk: 'Moderate Risk',
+      avg_score: 'Avg Risk Score',
+    },
     leadingIndicators: {
       total_checkins_30d: 0,
       avg_discomfort_30d: null,
@@ -13,16 +20,19 @@ document.addEventListener('alpine:init', () => {
       avg_micro_breaks_30d: null,
       high_psychosocial_count_30d: 0,
     },
-    recentScans: [], topTasks: [], weeklyTrends: [], deptHeatmap: [],
+    recentScans: [], recentRatings: [], topTasks: [], weeklyTrends: [], deptHeatmap: [],
     loading: true, error: '',
     async init() {
       try {
         const d = await api('/dashboard');
+        this.dashboardMode = d.dashboard_mode ?? 'organization';
+        this.kpiLabels = d.kpi_labels ?? this.kpiLabels;
         this.totalScans   = d.total_scans ?? 0;
         this.highRisk     = d.high_risk ?? 0;
         this.moderateRisk = d.moderate_risk ?? 0;
         this.avgScore     = d.avg_score != null ? Number(d.avg_score).toFixed(1) : 'N/A';
         this.recentScans  = d.recent_scans ?? [];
+        this.recentRatings = d.recent_ratings ?? [];
         this.topTasks     = d.top_tasks ?? [];
         this.weeklyTrends = d.weekly_trends ?? [];
         this.deptHeatmap  = d.department_heatmap ?? [];
@@ -1275,7 +1285,8 @@ document.addEventListener('alpine:init', () => {
   Alpine.data('scanResultsPage', () => ({
     scanId: null, scan: null, loading: true, error: '', pending: false,
     scanInvalid: false, errorMessage: '',
-    measurements: [], recommendation: '', controls: [],
+    measurements: [], recommendation: '', controls: [], controlActions: [],
+    actionBusy: false,
     _pollTimer: null,
     init() {
       // Support both /scans/42 (path) and /scans?id=42 (query)
@@ -1322,6 +1333,7 @@ document.addEventListener('alpine:init', () => {
         // Recommendation from scan_results
         this.recommendation = s.recommendation || '';
         this.controls = Array.isArray(s.controls) ? s.controls : [];
+        this.controlActions = Array.isArray(s.control_actions) ? s.control_actions : [];
 
         this.pending = (s.status === 'pending' || s.status === 'processing');
         if (this.pending) {
@@ -1365,6 +1377,97 @@ document.addEventListener('alpine:init', () => {
     get modelLabel() {
       if (!this.scan || !this.scan.model) return '';
       return this.scan.model.toUpperCase();
+    },
+    get canManageActions() {
+      const role = String(Alpine.store('auth')?.role || '').toLowerCase();
+      return role === 'admin' || role === 'supervisor';
+    },
+    get poseVideoUrl() {
+      const path = String(this.scan?.video_path || '').trim();
+      if (!path) return '';
+
+      // if (path.startsWith('/storage/uploads/')) return path;
+      if (path.startsWith('/storage/uploads/videos/')) return path.replace('/storage/uploads/videos/', '/storage/videos/');
+      if (path.startsWith('/storage/uploads/pose/')) return path.replace('/storage/uploads/pose/', '/storage/pose/');
+      return path;
+    },
+    actionForControl(controlId) {
+      const id = Number(controlId || 0);
+      if (!id || !Array.isArray(this.controlActions)) return null;
+      return this.controlActions.find(a => Number(a.source_control_id || 0) === id) || null;
+    },
+    upsertControlAction(action) {
+      if (!action || typeof action !== 'object') return;
+      const id = Number(action.id || 0);
+      if (!id) return;
+
+      const idx = this.controlActions.findIndex(a => Number(a.id || 0) === id);
+      if (idx >= 0) {
+        this.controlActions.splice(idx, 1, action);
+      } else {
+        this.controlActions.unshift(action);
+      }
+    },
+    async createControlAction(control) {
+      if (!this.canManageActions || !control?.id || this.actionBusy) return;
+      if (this.actionForControl(control.id)) return;
+
+      this.actionBusy = true;
+      try {
+        const action = await api('/control-actions/from-control', {
+          method: 'POST',
+          body: JSON.stringify({
+            scan_id: Number(this.scanId),
+            control_recommendation_id: Number(control.id),
+          }),
+        });
+        this.upsertControlAction(action);
+      } catch (e) {
+        this.error = e.message;
+      } finally {
+        this.actionBusy = false;
+      }
+    },
+    async updateActionStatus(actionId, status) {
+      if (!this.canManageActions || !actionId || !status || this.actionBusy) return;
+
+      this.actionBusy = true;
+      try {
+        const action = await api('/control-actions/' + Number(actionId), {
+          method: 'PUT',
+          body: JSON.stringify({ status }),
+        });
+        this.upsertControlAction(action);
+      } catch (e) {
+        this.error = e.message;
+      } finally {
+        this.actionBusy = false;
+      }
+    },
+    async verifyActionPrompt(actionId) {
+      if (!this.canManageActions || !actionId || this.actionBusy) return;
+
+      const raw = window.prompt('Enter verification scan ID');
+      if (raw === null) return;
+
+      const verificationScanId = Number(raw);
+      if (!Number.isInteger(verificationScanId) || verificationScanId <= 0) {
+        await window.appAlert?.('Verification scan ID must be a positive integer.', { title: 'Invalid Input', variant: 'warning' });
+        return;
+      }
+
+      this.actionBusy = true;
+      try {
+        const action = await api('/control-actions/' + Number(actionId) + '/verify', {
+          method: 'POST',
+          body: JSON.stringify({ verification_scan_id: verificationScanId }),
+        });
+        this.upsertControlAction(action);
+      } catch (e) {
+        this.error = e.message;
+      } finally {
+        this.actionBusy = false;
+      }
     },
     get barColor() {
       const l = this.riskLevelCategory;

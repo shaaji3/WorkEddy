@@ -29,6 +29,7 @@ Production-oriented implementation of WorkEddy aligned to `requirements.md` stac
 - Prescriptive control action lifecycle (recommendation -> action -> verification)
 - Worker coaching endpoint with multilingual tips (EN/ES/ZH/AR)
 - Scoped ergonomics copilot personas (supervisor, safety manager, engineer, auditor)
+- Live scan is deferred to V2 and disabled by default in the current release
 
 ## API
 
@@ -65,6 +66,7 @@ Notes:
 - If `vendor/` is empty in the mounted volume, the API container runs `composer install` automatically.
 - The `seed` service reuses the same app image as `api` (`workeddy-app`) to avoid building a duplicate PHP image.
 - `video-retention` service runs `scripts/cleanup-videos.php` on a loop (`VIDEO_CLEANUP_INTERVAL_SECONDS`) to enforce retention continuously.
+- `live-worker` is behind the optional `live` Docker Compose profile for the future V2 live-scan release.
 
 ## Database Commands
 
@@ -79,6 +81,7 @@ Notes:
 
 - All business data endpoints are organization-scoped using JWT claims.
 - Role checks are enforced per endpoint.
+- Detailed role responsibilities and permissions matrix: [docs/ROLE_RESPONSIBILITIES.md](docs/ROLE_RESPONSIBILITIES.md)
 - Worker service asks PHP for jobs via internal API (no direct Redis/DB queue access).
 - Worker extracts pose metrics only and reports results via internal API (no direct DB writes).
 - PHP `AssessmentEngine` is the single scoring authority for both manual and video scans.
