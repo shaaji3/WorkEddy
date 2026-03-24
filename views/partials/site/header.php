@@ -10,6 +10,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@500;700;800&display=swap" rel="stylesheet">
   
+  <!-- Favicon -->
+  <link rel="icon" href="/assets/img/favicon.ico">
   <!-- Bootstrap 5 CSS -->
   <link href="/assets/css/core.css" rel="stylesheet">
   <!-- Bootstrap Icons -->
@@ -30,6 +32,88 @@
       background: rgba(255, 255, 255, 0.9);
       backdrop-filter: blur(10px);
       border-bottom: 1px solid rgba(0,0,0,0.05);
+    }
+    .page-header {
+      padding: 140px 0 60px 0;
+      background: #f8fafc;
+      border-bottom: 1px solid rgba(0,0,0,0.05);
+    }
+    .policy-content {
+      font-size: 1.1rem;
+      line-height: 1.8;
+      color: #374151;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    .policy-content h2 {
+      font-family: 'Outfit', sans-serif;
+      font-weight: 700;
+      color: #111827;
+      margin-top: 3rem;
+      margin-bottom: 1.25rem;
+      font-size: 1.75rem;
+    }
+    .policy-content h3 {
+      font-family: 'Outfit', sans-serif;
+      font-weight: 700;
+      color: #1f2937;
+      margin-top: 2rem;
+      margin-bottom: 1rem;
+      font-size: 1.25rem;
+    }
+    .policy-content p {
+      margin-bottom: 1.25rem;
+    }
+    .policy-content ul, .policy-content ol {
+      margin-bottom: 1.75rem;
+      padding-left: 1.5rem;
+    }
+    .policy-content li {
+      margin-bottom: 0.5rem;
+    }
+    .story-content p {
+      margin-bottom: 2.25rem;
+    }
+    .story-content p:first-of-type {
+      font-size: 1.5rem;
+      font-weight: 500;
+      color: #1f2937;
+      line-height: 1.8;
+      border-left: 4px solid var(--bs-primary);
+      padding-left: 1.5rem;
+      margin-bottom: 3rem;
+    }
+    .founder-card {
+      background: #ffffff;
+      border: 1px solid rgba(0,0,0,0.08);
+      border-radius: 1rem;
+      padding: 2.5rem;
+      box-shadow: 0 10px 30px -10px rgba(0,0,0,0.05);
+      margin-top: -100px;
+      position: relative;
+      z-index: 10;
+    }
+    .strong-take {
+      background: #eff6ff;
+      border-radius: 1rem;
+      padding: 2.5rem;
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.5rem;
+      color: #1e3a8a;
+      line-height: 1.6;
+      margin-top: 4rem;
+      margin-bottom: 2rem;
+      box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.02);
+    }
+    .page-header {
+      padding: 160px 0 80px 0;
+      background: #ffffff;
+      border-bottom: 1px solid rgba(0,0,0,0.05);
+    }
+    .about-panel {
+      border: 1px solid rgba(0,0,0,0.08);
+      border-radius: 1rem;
+      box-shadow: 0 10px 30px -10px rgba(0,0,0,0.05);
     }
     .landing-hero {
       padding: 120px 0 80px 0;
