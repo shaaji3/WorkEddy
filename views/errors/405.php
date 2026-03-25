@@ -20,7 +20,6 @@ $pageTitle = '405 – Method Not Allowed';
 
   <div class="auth-brand mb-4">
     <img src="/assets/img/workeddy.png" alt="WorkEddy logo" class="auth-brand-logo" />
-    <span class="auth-brand-name">WorkEddy</span>
   </div>
 
   <div class="error-code text-secondary mb-2" style="font-size:6rem;font-weight:800;line-height:1;font-family:'Inter',sans-serif;">405</div>
