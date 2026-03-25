@@ -21,8 +21,8 @@ include __DIR__ . '/../partials/site/v2_header.php';
           <div class="founder-card d-flex flex-column flex-sm-row align-items-center text-center text-sm-start gap-4 mx-auto">
             <img src="/assets/img/founder.jpeg" alt="Treasure Nkemdilim James" class="rounded-circle shadow-sm border border-secondary border-opacity-50" style="width: 140px; height: 140px; object-fit: cover;">
             <div>
-              <h4 class="fw-bold fs-6 mb-1 text-white">Treasure Nkemdilim James</h4>
-              <p class="small text-light opacity-50 mb-2 font-mono">MS, MSISD, MOSH, PCQI</p>
+              <h4 class="fw-bold fs-6 mb-1 text-white">Treasure Nkemdilim James <span class="small text-light opacity-50 mb-2 font-mono">MS, MSISD, MOSH, PCQI</span></h4>
+              
               <p class="fw-bold text-cyan mb-3">Founder and Product Lead</p>
               <div class="d-inline-flex bg-success bg-opacity-10 text-emerald border border-success border-opacity-25 rounded-3 px-3 py-2">
                 <div class="d-flex align-items-center gap-2">
