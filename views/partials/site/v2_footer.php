@@ -14,25 +14,24 @@
         <div class="col-6 col-lg-2 offset-lg-2">
           <h6 class="fw-bold text-uppercase mb-3 font-mono" style="font-size:0.8rem;">Product</h6>
           <ul class="list-unstyled text-white-50">
-            <li class="mb-2"><a href="/index2#features" class="text-white-50 text-decoration-none hover-text-white">Features</a></li>
-            <li class="mb-2"><a href="/index2#pricing" class="text-white-50 text-decoration-none hover-text-white">Pricing</a></li>
+            <li class="mb-2"><a href="/#features" class="text-white-50 text-decoration-none hover-text-white">Features</a></li>
+            <li class="mb-2"><a href="/#pricing" class="text-white-50 text-decoration-none hover-text-white">Pricing</a></li>
             <li class="mb-2"><a href="#" class="text-white-50 text-decoration-none hover-text-white">Enterprise</a></li>
           </ul>
         </div>
         <div class="col-6 col-lg-2">
           <h6 class="fw-bold text-uppercase mb-3 font-mono" style="font-size:0.8rem;">Company</h6>
           <ul class="list-unstyled text-white-50">
-            <li class="mb-2"><a href="/about-us2" class="text-white-50 text-decoration-none hover-text-white">About Us</a></li>
-            <li class="mb-2"><a href="/founder-story2" class="text-white-50 text-decoration-none hover-text-white">From the Founder</a></li>
-            <li class="mb-2"><a href="#" class="text-white-50 text-decoration-none hover-text-white">Careers</a></li>
+            <li class="mb-2"><a href="/about-us" class="text-white-50 text-decoration-none hover-text-white">About Us</a></li>
+            <li class="mb-2"><a href="/founder-story" class="text-white-50 text-decoration-none hover-text-white">From the Founder</a></li>
             <li class="mb-2"><a href="#" class="text-white-50 text-decoration-none hover-text-white">Contact</a></li>
           </ul>
         </div>
         <div class="col-6 col-lg-2">
           <h6 class="fw-bold text-uppercase mb-3 font-mono" style="font-size:0.8rem;">Legal</h6>
           <ul class="list-unstyled text-white-50">
-            <li class="mb-2"><a href="/privacy-policy2" class="text-white-50 text-decoration-none hover-text-white">Privacy Policy</a></li>
-            <li class="mb-2"><a href="/terms-of-service2" class="text-white-50 text-decoration-none hover-text-white">Terms of Service</a></li>
+            <li class="mb-2"><a href="/privacy-policy" class="text-white-50 text-decoration-none hover-text-white">Privacy Policy</a></li>
+            <li class="mb-2"><a href="/terms-of-service" class="text-white-50 text-decoration-none hover-text-white">Terms of Service</a></li>
           </ul>
         </div>
       </div>
