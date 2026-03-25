@@ -34,8 +34,7 @@ $liveFeatureEnabled = (bool) ((require dirname(__DIR__, 2) . '/app/config/live.p
 
     <!-- Brand -->
     <a class="app-brand" href="/dashboard">
-      <img src="/assets/img/logo.png" alt="WorkEddy logo" class="app-brand-logo" />
-      <span class="app-brand-text">WorkEddy</span>
+     <img src="/assets/img/workeddy.png" alt="WorkEddy logo" class="auth-brand-logo" />
     </a>
 
     <!-- Menu -->
