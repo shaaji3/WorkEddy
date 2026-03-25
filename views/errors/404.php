@@ -20,7 +20,6 @@ $pageTitle = '404 – Page Not Found';
 
   <div class="auth-brand mb-4">
 <img src="/assets/img/workeddy.png" alt="WorkEddy logo" class="auth-brand-logo" />
-    <span class="auth-brand-name">WorkEddy</span>
   </div>
 
   <div class="error-code text-primary mb-2" style="font-size:6rem;font-weight:800;line-height:1;font-family:'Inter',sans-serif;">404</div>
