@@ -256,7 +256,7 @@
             margin-bottom: 2rem;
         }
 
-        /* Hero section styles for index2.php */
+        /* Hero section styles for index.php */
         .landing-hero {
             padding: 140px 0 0 0;
             position: relative;
@@ -548,7 +548,7 @@
     <!-- Navbar -->
     <nav class="navbar navbar-expand-lg fixed-top marketing-nav py-3">
         <div class="container">
-            <a class="navbar-brand d-flex align-items-center gap-2 text-decoration-none" href="/index2">
+            <a class="navbar-brand d-flex align-items-center gap-2 text-decoration-none" href="/">
                 <img src="/assets/img/workeddy.png" alt="WorkEddy" class="img-fluid" style="max-width: 150px;;">
             </a>
             <button class="navbar-toggler border-0 shadow-none text-white" type="button" data-bs-toggle="collapse" data-bs-target="#marketingNavbar">
@@ -556,9 +556,9 @@
             </button>
             <div class="collapse navbar-collapse" id="marketingNavbar">
                 <ul class="navbar-nav mx-auto mb-2 mb-lg-0 fw-medium font-mono text-uppercase" style="font-size: 0.85rem;">
-                    <li class="nav-item"><a class="nav-link px-3" href="/index2#features">Features</a></li>
-                    <li class="nav-item"><a class="nav-link px-3" href="/index2#how-it-works">How it Works</a></li>
-                    <li class="nav-item"><a class="nav-link px-3" href="/index2#pricing">Pricing</a></li>
+                    <li class="nav-item"><a class="nav-link px-3" href="/#features">Features</a></li>
+                    <li class="nav-item"><a class="nav-link px-3" href="/#how-it-works">How it Works</a></li>
+                    <li class="nav-item"><a class="nav-link px-3" href="/#pricing">Pricing</a></li>
                 </ul>
                 <div class="d-flex gap-3 flex-column flex-lg-row mt-3 mt-lg-0 font-mono" style="font-size:0.85rem;">
                     <a href="/login" class="text-white text-decoration-none d-flex align-items-center">Login</a>
