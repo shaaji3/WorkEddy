@@ -19,7 +19,7 @@ $pageTitle = '500 – Server Error';
 <div class="d-flex flex-column align-items-center justify-content-center min-vh-100 text-center px-3">
 
   <div class="auth-brand mb-4">
-   <img src="/assets/img/logo.png" alt="WorkEddy logo" class="auth-brand-logo" />
+   <img src="/assets/img/workeddy.png" alt="WorkEddy logo" class="auth-brand-logo" />
     <span class="auth-brand-name">WorkEddy</span>
   </div>
 
