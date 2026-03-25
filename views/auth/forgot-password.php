@@ -7,16 +7,15 @@ ob_start();
 
     <!-- Brand -->
     <div class="auth-brand">
-      <img src="/assets/img/logo.png" alt="WorkEddy logo" class="auth-brand-logo" />
-      <span class="auth-brand-name">WorkEddy</span>
+      <img src="/assets/img/workeddy.png" alt="WorkEddy logo" class="auth-brand-logo" />
     </div>
 
     <h1 class="auth-title">Reset your password</h1>
     <p class="auth-subtitle">Enter your email and we'll send you a reset link.</p>
 
     <div class="alert py-2"
-         x-show="message" x-cloak
-         :class="isError ? 'alert-danger' : 'alert-success'">
+      x-show="message" x-cloak
+      :class="isError ? 'alert-danger' : 'alert-success'">
       <i class="bi me-2" :class="isError ? 'bi-x-circle' : 'bi-check-circle'"></i>
       <span x-text="message"></span>
     </div>
@@ -25,7 +24,7 @@ ob_start();
       <div class="mb-4">
         <label class="form-label" for="forgotEmail">Email address</label>
         <input class="form-control" id="forgotEmail" type="email"
-               x-model="email" placeholder="you@example.com" required autocomplete="email">
+          x-model="email" placeholder="you@example.com" required autocomplete="email">
       </div>
 
       <button class="btn btn-primary w-100 btn-lg mb-3" type="submit" :disabled="loading">

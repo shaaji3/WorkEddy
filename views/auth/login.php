@@ -7,8 +7,7 @@ ob_start();
 
     <!-- Brand -->
     <div class="auth-brand">
-      <img src="/assets/img/logo.png" alt="WorkEddy logo" class="auth-brand-logo" />
-      <span class="auth-brand-name">WorkEddy</span>
+      <img src="/assets/img/workeddy.png" alt="WorkEddy logo" class="auth-brand-logo" />
     </div>
 
     <!-- ── Step 1: Email & Password ──────────────────────────────────── -->
