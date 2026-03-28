@@ -17,7 +17,7 @@ include __DIR__ . '/../partials/site/v2_header.php';
     <div class="container">
       <!-- Founder Bio / Author Card (pulls up into header) -->
       <div class="row justify-content-center mb-5">
-        <div class="col-lg-8 col-xl-7">
+        <div class="col-lg-10 col-xl-8">
           <div class="founder-card d-flex flex-column flex-sm-row align-items-center text-center text-sm-start gap-4 mx-auto">
             <img src="/assets/img/founder.jpeg" alt="Treasure Nkemdilim James" class="rounded-circle shadow-sm border border-secondary border-opacity-50" style="width: 140px; height: 140px; object-fit: cover;">
             <div>
@@ -53,7 +53,6 @@ include __DIR__ . '/../partials/site/v2_header.php';
 
             <div class="strong-take fw-bold text-center">
               <i class="bi bi-quote fs-1 text-cyan opacity-50 d-block mb-3"></i>
-              <span class="font-mono text-uppercase d-block mb-2 text-cyan opacity-75" style="letter-spacing:1px; font-size: 0.85rem;">The Conviction</span>
               WorkEddy is grounded in a clear conviction: safer work should not start after injury has already occurred. It should start earlier, with better visibility into risk, clearer action on what to improve, and stronger evidence that workplace changes are reducing exposure over time.
             </div>
           </div>
